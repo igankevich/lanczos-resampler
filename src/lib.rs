@@ -1,4 +1,5 @@
 use core::f32::consts::PI;
+use core::mem::MaybeUninit;
 
 /// Linear interpolation.
 ///
@@ -26,6 +27,7 @@ fn lanczos_kernel<const A: usize>(x: f32) -> f32 {
 ///
 /// See <https://en.wikipedia.org/wiki/Cubic_Hermite_spline>.
 pub struct LanczosKernel<const N: usize, const A: usize> {
+    // TODO We need only half of the points because Lanczos kernel is symmetric.
     kernel: [f32; N],
 }
 
@@ -123,7 +125,6 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         Self { kernel }
     }
 
-    // TODO Add interpolate_with_history
     pub fn interpolate(&self, x: f32, samples: &[f32]) -> f32 {
         debug_assert!(!samples.is_empty());
         let i = x.floor() as usize;
@@ -131,6 +132,30 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         let i_from = i.saturating_sub(A) + 1;
         let i_to = (i + A).min(samples.len() - 1);
         let mut sum = 0.0;
+        for j in i_from..=i_to {
+            sum += samples[j] * self.kernel.interpolate(x - j as f32);
+        }
+        sum
+    }
+
+    pub fn interpolate_with_prev_samples(
+        &self,
+        x: f32,
+        samples: &[f32],
+        prev_samples: &[f32],
+    ) -> f32 {
+        let i = x.floor() as usize;
+        let mut sum = 0.0;
+        if i < A {
+            let n = prev_samples.len();
+            let i_from = n.saturating_sub(A - i - 1);
+            for j in i_from..n {
+                let k = n - j;
+                sum += prev_samples[j] * self.kernel.interpolate(x + k as f32);
+            }
+        }
+        let i_from = i.saturating_sub(A) + 1;
+        let i_to = (i + A).min(samples.len() - 1);
         for j in i_from..=i_to {
             sum += samples[j] * self.kernel.interpolate(x - j as f32);
         }
@@ -170,63 +195,287 @@ pub struct LanczosResampler<const N: usize, const A: usize> {
     filter: LanczosFilter<N, A>,
     input_sample_rate: usize,
     output_sample_rate: usize,
-    output_len_remainder: f64,
+    output_len_remainder: usize,
     prev_samples: [f32; A],
 }
 
 impl<const N: usize, const A: usize> LanczosResampler<N, A> {
     pub fn new(input_sample_rate: usize, output_sample_rate: usize) -> Self {
-        assert!(input_sample_rate > 0, "Input sample rate must be non-zero");
-        assert!(
-            output_sample_rate > 0,
-            "Output sample rate must be non-zero"
-        );
-        let filter = LanczosFilter::new();
         Self {
-            filter,
+            filter: LanczosFilter::new(),
             input_sample_rate,
             output_sample_rate,
-            output_len_remainder: 0.0,
+            output_len_remainder: 0,
             prev_samples: [0.0; A],
         }
     }
 
-    pub fn output_len(&self, input_len: usize) -> f64 {
-        let numerator = input_len * self.output_sample_rate;
-        let remainder = numerator % self.input_sample_rate;
-        if remainder == 0 {
-            return (numerator / self.input_sample_rate) as f64;
-        }
-        let ratio = self.output_sample_rate as f64 / self.input_sample_rate as f64;
-        input_len as f64 * ratio
+    fn adjust_lengths(&mut self, input_len: usize, output_len: usize) -> (usize, usize) {
+        let (input_len, output_len, remainder) = adjust_lengths(
+            input_len,
+            output_len,
+            self.input_sample_rate,
+            self.output_sample_rate,
+            self.output_len_remainder,
+        );
+        self.output_len_remainder = remainder;
+        (input_len, output_len)
     }
 
-    // TODO return how many samples were read as well
-    pub fn resample_into(&mut self, samples: &[f32], output: &mut [f32]) -> usize {
-        let output_len = self.output_len(samples.len());
-        if output_len == 0.0 {
-            return 0;
+    pub fn resample_into(&mut self, input: &[f32], output: &mut [impl WriteF32]) -> (usize, usize) {
+        // Determine how many input sampels we can process and how many output samples we can
+        // produce.
+        let (input_len, output_len) = self.adjust_lengths(input.len(), output.len());
+        if input_len == 0 || output_len == 0 {
+            return (0, 0);
         }
-        self.output_len_remainder += output_len.fract();
-        let mut output_len = output_len.floor() as usize;
-        if self.output_len_remainder >= 1.0 {
-            output_len += 1;
-            self.output_len_remainder -= 1.0;
-        }
-        assert!(output_len <= output.len());
+        let input = &input[..input_len];
+        let output = &mut output[..output_len];
         let x0 = 0.0;
         let x1 = (output_len - 1) as f32;
-        for i in 0..output_len {
+        for (i, out) in output.iter_mut().enumerate() {
             let x = lerp(x0, x1, i as f32 / x1);
-            output[i] = self.filter.interpolate(x, samples);
+            out.write(
+                self.filter
+                    .interpolate_with_prev_samples(x, input, &self.prev_samples[..]),
+            );
         }
-        let n = samples.len().min(A);
+        let n = input.len().min(A);
         if n < A {
             self.prev_samples.copy_within(A - n.., 0);
         }
-        self.prev_samples[A - n..].copy_from_slice(&samples[samples.len() - n..]);
-        output_len
+        self.prev_samples[A - n..].copy_from_slice(&input[input.len() - n..]);
+        (input_len, output_len)
+    }
+}
+
+pub const fn checked_output_len(
+    input_len: usize,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+) -> Option<usize> {
+    if input_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
+        return Some(0);
+    }
+    if input_sample_rate == output_sample_rate {
+        return Some(input_len);
+    }
+    match input_len.checked_mul(output_sample_rate) {
+        Some(numerator) => Some(numerator / input_sample_rate),
+        None => (input_len / input_sample_rate).checked_mul(output_sample_rate),
+    }
+}
+
+#[test]
+fn checked_output_len_works() {
+    assert_eq!(Some(48000), checked_output_len(44100, 44100, 48000));
+    assert_eq!(None, checked_output_len(usize::MAX, 44100, 48000));
+    assert_eq!(
+        Some(usize::MAX),
+        checked_output_len(44100, 44100, usize::MAX)
+    );
+    assert_eq!(
+        Some(48000),
+        checked_output_len(usize::MAX, usize::MAX, 48000)
+    );
+}
+
+pub fn resample<const N: usize, const A: usize>(
+    input: &[f32],
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+) -> Vec<f32> {
+    let output_len = checked_output_len(input.len(), input_sample_rate, output_sample_rate)
+        .expect("Overflow while determining output length");
+    let mut output = Vec::with_capacity(output_len);
+    do_resample_into::<N, A>(input, output.spare_capacity_mut());
+    // SAFETY: We initialize all elements in `do_resample_into`.
+    unsafe { output.set_len(output_len) }
+    output
+}
+
+fn do_resample_into<const N: usize, const A: usize>(input: &[f32], output: &mut [impl WriteF32]) {
+    let filter = LanczosFilter::<N, A>::new();
+    let output_len = output.len();
+    let x0 = 0.0;
+    let x1 = (output_len - 1) as f32;
+    for (i, out) in output.iter_mut().enumerate() {
+        let x = lerp(x0, x1, i as f32 / x1);
+        out.write(filter.interpolate(x, input));
+    }
+}
+
+pub trait WriteF32 {
+    fn write(&mut self, value: f32);
+}
+
+impl WriteF32 for f32 {
+    fn write(&mut self, value: f32) {
+        *self = value;
+    }
+}
+
+impl WriteF32 for MaybeUninit<f32> {
+    fn write(&mut self, value: f32) {
+        MaybeUninit::<f32>::write(self, value);
     }
 }
 
 // TODO check that streaming resampling gives the same result as resampling in one go
+
+#[inline]
+const fn adjust_lengths(
+    mut input_len: usize,
+    mut output_len: usize,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+    mut remainder: usize,
+) -> (usize, usize, usize) {
+    if input_len == 0 || output_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
+        return (0, 0, remainder);
+    }
+    // Clamp input length.
+    let max_input_len = (usize::MAX / output_sample_rate).saturating_sub(remainder);
+    if input_len > max_input_len {
+        input_len = max_input_len;
+    }
+    if input_len == 0 {
+        return (0, 0, remainder);
+    }
+    // Clamp output length.
+    let max_output_len = usize::MAX / input_sample_rate;
+    if output_len > max_output_len {
+        output_len = max_output_len;
+    }
+    if output_len == 0 {
+        return (0, 0, remainder);
+    }
+    // Do at most two steps of fixed-point iteration to determine output length.
+    //eprintln!("    step 0 {input_len} {output_len} {input_sample_rate} {output_sample_rate} {remainder}");
+    let lhs = input_len * output_sample_rate + remainder;
+    let rhs = output_len * input_sample_rate;
+    if lhs < rhs {
+        // One step was enough.
+        output_len = lhs / input_sample_rate;
+        remainder = lhs % input_sample_rate;
+        //eprintln!("    step 1 {input_len} {output_len} {input_sample_rate} {output_sample_rate} {remainder}");
+        return (input_len, output_len, remainder);
+    }
+    // TODO test
+    // Do the second step with the new input length.
+    input_len = rhs / output_sample_rate;
+    //eprintln!("    step 1 {input_len} {output_len} {input_sample_rate} {output_sample_rate} {remainder}");
+    let lhs = input_len * output_sample_rate + remainder;
+    output_len = lhs / input_sample_rate;
+    remainder = lhs % input_sample_rate;
+    //eprintln!("    step 2 {input_len} {output_len} {input_sample_rate} {output_sample_rate} {remainder}");
+    (input_len, output_len, remainder)
+}
+
+#[test]
+fn adjust_lengths_works() {
+    assert_eq!(
+        (44100, 48000, 0),
+        adjust_lengths(44100, 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100, 48000, 0),
+        adjust_lengths(2 * 44100, 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100, 48000, 0),
+        adjust_lengths(44100, 2 * 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (2 * 44100, 2 * 48000, 0),
+        adjust_lengths(2 * 44100, 2 * 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100 / 3, 48000 / 3, 0),
+        adjust_lengths(44100 / 3, 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100 / 3, 48000 / 3, 0),
+        adjust_lengths(44100, 48000 / 3, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100, 48000, 0),
+        adjust_lengths(usize::MAX, 48000, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (44100, 48000, 0),
+        adjust_lengths(44100, usize::MAX, 44100, 48000, 0)
+    );
+    assert_eq!(
+        (1, 1, 0),
+        adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, 0)
+    );
+    assert_eq!(
+        (0, 0, 0),
+        adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, usize::MAX)
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arbtest::arbtest;
+
+    fn max_sample_rate() -> usize {
+        (usize::MAX as f64).sqrt().ceil() as usize
+    }
+
+    #[test]
+    fn adjust_lengths_remainder_works() {
+        arbtest(|u| {
+            let max_sample_rate = max_sample_rate();
+            let output_sample_rate: usize = u.int_in_range(1..=max_sample_rate)?;
+            let input_sample_rate: usize =
+                u.int_in_range(1..=max_sample_rate - output_sample_rate)?;
+            let input_len = input_sample_rate;
+            let output_len = output_sample_rate;
+            let num_chunks: usize = u.int_in_range(1..=10.min(input_len))?;
+            let max_chunk_len = input_len.div_ceil(num_chunks);
+            // TODO output len should also be arbitrary
+            let mut total_input_chunks_len = 0;
+            let mut total_output_chunks_len = 0;
+            let mut output_len_remainder = 0;
+            let mut offset = 0;
+            for i in 0..num_chunks {
+                let chunk_len: usize = if i == num_chunks - 1 {
+                    input_len - offset
+                } else {
+                    u.int_in_range(0..=max_chunk_len.min(input_len - offset))?
+                };
+                let (input_chunk_len, output_chunk_len, output_rem) = adjust_lengths(
+                    chunk_len,
+                    output_len,
+                    input_sample_rate,
+                    output_sample_rate,
+                    output_len_remainder,
+                );
+                //eprintln!("{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {output_len_remainder}) -> {input_chunk_len} {output_chunk_len} {output_rem}");
+                output_len_remainder = output_rem;
+                total_input_chunks_len += input_chunk_len;
+                total_output_chunks_len += output_chunk_len;
+                offset += input_chunk_len;
+            }
+            assert_eq!(input_len, total_input_chunks_len);
+            assert_eq!(output_len, total_output_chunks_len);
+            assert_eq!(0, output_len_remainder);
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn resample_works() {
+        arbtest(|u| {
+            let input: Vec<f32> = u.arbitrary()?;
+            let input_sample_rate = input.len();
+            let output_sample_rate = u.int_in_range(1..=max_sample_rate())?;
+            let expected_output = resample::<11, 3>(&input, input_sample_rate, output_sample_rate);
+            // TODO
+            Ok(())
+        });
+    }
+}

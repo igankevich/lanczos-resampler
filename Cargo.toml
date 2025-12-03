@@ -2,3 +2,7 @@
 name = "lanczos-audio-resampler"
 version = "0.1.0"
 edition = "2024"
+
+[dev-dependencies]
+arbitrary = "1.4.2"
+arbtest = "0.3.2"
