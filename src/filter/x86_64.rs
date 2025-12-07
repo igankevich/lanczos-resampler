@@ -1,9 +1,9 @@
 #![allow(unused)]
 
 use super::*;
-use crate::M256Ext;
 use crate::F256;
 use crate::I256;
+use crate::M256Ext;
 use core::arch::x86_64::*;
 use seq_macro::seq;
 

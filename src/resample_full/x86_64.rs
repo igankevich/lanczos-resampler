@@ -1,9 +1,9 @@
 #![allow(unused)]
 
 use super::*;
-use crate::lerp_avx;
-use crate::M256Ext;
 use crate::F256;
+use crate::M256Ext;
+use crate::lerp_avx;
 use core::arch::x86_64::*;
 
 pub(crate) fn do_resample_into_avx<const N: usize, const A: usize>(

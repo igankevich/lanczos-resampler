@@ -1,7 +1,7 @@
-use crate::lerp;
 use crate::Input;
 use crate::LanczosFilter;
 use crate::Output;
+use crate::lerp;
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64;

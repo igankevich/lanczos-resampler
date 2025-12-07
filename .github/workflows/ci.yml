@@ -4,7 +4,6 @@ on: [push]
 env:
   RUST_BACKTRACE: 1
   ARBTEST_BUDGET_MS: 10000
-
 jobs:
   test:
     strategy:

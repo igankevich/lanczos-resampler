@@ -1,6 +1,6 @@
+use crate::Float32ArrayOutput;
 use crate::output_len;
 use crate::resample_into;
-use crate::Float32ArrayOutput;
 use js_sys::Float32Array;
 use wasm_bindgen::prelude::*;
 

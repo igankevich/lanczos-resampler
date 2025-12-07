@@ -1,6 +1,6 @@
-use crate::lerp;
 use crate::LanczosFilter;
 use crate::Output;
+use crate::lerp;
 
 pub struct LanczosResampler<const N: usize, const A: usize> {
     filter: LanczosFilter<N, A>,
