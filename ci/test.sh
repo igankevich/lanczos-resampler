@@ -43,11 +43,7 @@ do_wasm_pack_test() {
 wasm_pack_test() {
     case "$os" in
     macos) do_wasm_pack_test --safari ;;
-    linux) do_wasm_pack_test ;;
-    *)
-        printf "Unknown os \"%s\"\n" "$os" >&2
-        exit 1
-        ;;
+    *) do_wasm_pack_test ;;
     esac
 }
 
