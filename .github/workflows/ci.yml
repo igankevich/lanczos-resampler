@@ -1,0 +1,28 @@
+---
+name: CI
+on: [push]
+env:
+  RUST_BACKTRACE: 1
+  ARBTEST_BUDGET_MS: 10000
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu, macos, windows]
+    runs-on: {{ strategy.os }}-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.4
+        # https://drager.github.io/wasm-pack/installer/
+      - name: Install wasm-pack
+        run: npm install -g wasm-pack
+        # https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs 
+      - name: Install nodejs
+        uses: actions/setup-node@v4
+        run: node --version
+      - name: Install firefox
+        uses: browser-actions/setup-firefox@v1
+        run: firefox --version
+      - name: Test
+        run: ./ci/test.sh {{ strategy.os }}

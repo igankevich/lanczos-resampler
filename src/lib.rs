@@ -19,3 +19,8 @@ pub use self::input::*;
 pub use self::output::*;
 pub use self::resample_chunked::*;
 pub use self::resample_full::*;
+
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+#[cfg(all(target_arch = "wasm32", not(test)))]
+pub use self::wasm::*;

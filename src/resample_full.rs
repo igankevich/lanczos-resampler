@@ -206,7 +206,8 @@ mod tests {
         });
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn checked_output_len_works() {
         assert_eq!(Some(48000), checked_output_len(44100, 44100, 48000));
         assert_eq!(None, checked_output_len(usize::MAX, 44100, 48000));
@@ -240,7 +241,8 @@ mod tests {
         });
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn mean_works() {
         assert_eq!(1.0, mean(&[1.0, 1.0]));
         assert_eq!(2.0, mean(&[2.0, 2.0]));

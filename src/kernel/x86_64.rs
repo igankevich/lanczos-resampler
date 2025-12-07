@@ -142,7 +142,7 @@ mod tests {
             assert_eq!(0, N % 8);
             for offset in (0..N).step_by(8) {
                 let i = _mm256_setr_epi32(
-                    (offset + 0) as i32,
+                    offset as i32,
                     (offset + 1) as i32,
                     (offset + 2) as i32,
                     (offset + 3) as i32,

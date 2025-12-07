@@ -155,7 +155,7 @@ mod tests {
         let input = sine_wave(M);
         let expected_output = resample::<N, A>(&input[..], M, O);
         let mut resampler = LanczosResampler::<N, A>::new(M, O);
-        let mut output = vec![f32::NAN; O];
+        let mut output = [f32::NAN; O];
         let mut output = &mut output[..];
         let num_read = resampler.resample_into(&input[..M / 2], &mut output);
         assert_eq!(M / 2, num_read);
@@ -210,8 +210,7 @@ mod tests {
             let mut actual_output = vec![f32::NAN; expected_output.len()];
             let mut input_slice = &input[..];
             let mut output_slice = &mut actual_output[..];
-            for i in 0..num_chunks {
-                let chunk_len = chunks[i];
+            for chunk_len in chunks.iter().copied() {
                 let num_read =
                     resampler.resample_into(&input_slice[..chunk_len], &mut output_slice);
                 input_slice = &input_slice[num_read..];
@@ -223,7 +222,8 @@ mod tests {
         });
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn adjust_lengths_works() {
         assert_eq!(
             (44100, 48000, 0),
@@ -271,7 +271,8 @@ mod tests {
         (usize::MAX as f64).sqrt().ceil() as usize
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn adjust_lengths_remainder_works() {
         arbtest(|u| {
             let max_sample_rate = max_sample_rate();

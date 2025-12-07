@@ -83,7 +83,7 @@ mod tests {
             return Vec::new();
         }
         if input_len == 1 {
-            return vec![input[0]; output_len];
+            return vec![input.get(0); output_len];
         }
         if output_len == 1 {
             return vec![mean(input); output_len];
@@ -109,7 +109,7 @@ mod tests {
             return Vec::new();
         }
         if input_len == 1 {
-            return vec![input[0]; output_len];
+            return vec![input.get(0); output_len];
         }
         if output_len == 1 {
             return vec![mean(input); output_len];
