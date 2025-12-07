@@ -8,7 +8,6 @@ main() {
     cargo_clippy
     cargo_test
     wasm_pack_build
-    add_browsers_to_path
     wasm_pack_test
     wasm_integration_tests
 }
@@ -26,21 +25,17 @@ wasm_pack_build() {
     du -chd0 pkg
 }
 
-add_browsers_to_path() {
-    mkdir "$workdir"/browsers
-    ln -s "$CHROME_PATH" "$workdir"/browsers/chrome
-    #ln -s "$CHROMEDRIVER_PATH" "$workdir"/browsers/chromedriver
-    ln -s "$FIREFOX_PATH" "$workdir"/browsers/firefox
-    export PATH="$workdir"/browsers:"$PATH"
-}
-
 wasm_pack_test() {
     wasm-pack test --node
-    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --firefox
-    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --chrome
-    if test "$os" = "macos"; then
+    case "$os" in
+    ubuntu)
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --firefox
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --chrome
+        ;;
+    macos)
         env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --safari
-    fi
+        ;;
+    esac
 }
 
 wasm_integration_tests() {
