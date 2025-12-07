@@ -34,9 +34,6 @@ add_browsers_to_path() {
     export PATH="$workdir"/browsers:"$PATH"
 }
 
-do_wasm_pack_test() {
-}
-
 wasm_pack_test() {
     wasm-pack test --node
     env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --firefox
