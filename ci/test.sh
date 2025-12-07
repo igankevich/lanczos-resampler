@@ -10,7 +10,7 @@ main() {
     cargo_bench
     wasm_pack_build
     add_browsers_to_path
-    wams_pack_test
+    wasm_pack_test
     wasm_integration_tests
 }
 
