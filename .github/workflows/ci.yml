@@ -16,12 +16,22 @@ jobs:
         # https://drager.github.io/wasm-pack/installer/
       - name: Install wasm-pack
         run: npm install -g wasm-pack
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          apt-get install -qqy --no-install-recommends nodejs firefox chromium
-          node --version
-          firefox --version
-          chromium --version
+        # https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs 
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+      - run: node --version
+      - name: Install Firefox
+        uses: browser-actions/setup-firefox@v1
+        id: setup-firefox
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          install-chromedriver: true
+          install-dependencies: true
       - name: Test
+        env:
+          FIREFOX_PATH: ${{ steps.setup-firefox.outputs.firefox-path }}
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          # CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: ./ci/test.sh ${{ matrix.os }}
