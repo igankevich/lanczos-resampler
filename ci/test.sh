@@ -35,16 +35,15 @@ add_browsers_to_path() {
 }
 
 do_wasm_pack_test() {
-    env WASM_BINDGEN_USE_BROWSER=1 \
-        wasm-pack test --headless --node --firefox --chrome "$@"
-    wasm-pack test --node
 }
 
 wasm_pack_test() {
-    case "$os" in
-    macos) do_wasm_pack_test --safari ;;
-    *) do_wasm_pack_test ;;
-    esac
+    wasm-pack test --node
+    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --firefox
+    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --chrome
+    if test "$os" = "macos"; then
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --safari
+    fi
 }
 
 wasm_integration_tests() {
