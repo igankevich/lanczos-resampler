@@ -59,7 +59,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
                 let mut index = _mm256_extract_epi32(initial_index, k) as usize;
                 for j in i_from_k..=i_to_k {
                     x_sub_j[index] = x_f - j as f32;
-                    sample[index] = samples[j as usize];
+                    sample[index] = samples.get(j as usize);
                     index += 1;
                 }
                 sum[k] += _mm256_mul_ps(sample.into(), self.kernel.interpolate_avx(x_sub_j.into())).sum();

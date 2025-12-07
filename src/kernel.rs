@@ -2,6 +2,8 @@ use core::f32::consts::PI;
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
+
+#[cfg(target_arch = "x86_64")]
 pub(crate) use self::x86_64::*;
 
 /// Linear interpolation.

@@ -6,6 +6,11 @@ use crate::Output;
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
 
+/// Calculates resampled length of the input for given input/output sample rates.
+///
+/// This function doesn't track division remainders and should only be used when resampling the
+/// whole audio track.
+///
 /// Panics when input length or output sample rate is too large.
 pub const fn output_len(
     input_len: usize,
@@ -44,7 +49,7 @@ fn mean(input: &(impl Input + ?Sized)) -> f32 {
     let mut avg = 0.0;
     let mut n = 1;
     for i in 0..input.len() {
-        avg += (input[i] - avg) / n as f32;
+        avg += (input.get(i) - avg) / n as f32;
         n += 1;
     }
     avg
@@ -65,7 +70,7 @@ pub fn resample<const N: usize, const A: usize>(
         return Vec::new();
     }
     if input_len == 1 {
-        return vec![input[0]; output_len];
+        return vec![input.get(0); output_len];
     }
     if output_len == 1 {
         return vec![mean(input); output_len];
@@ -95,7 +100,7 @@ pub fn resample_into<const N: usize, const A: usize>(
     }
     if input_len == 1 {
         for _ in 0..output_len {
-            output.write(input[0]);
+            output.write(input.get(0));
         }
         return 1;
     }
@@ -103,7 +108,7 @@ pub fn resample_into<const N: usize, const A: usize>(
         output.write(mean(input));
         return input_len;
     }
-    do_resample_into::<N, A>(input.take(input_len), output);
+    do_resample_into::<N, A>(&input.take(input_len), output);
     input_len
 }
 

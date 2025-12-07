@@ -73,3 +73,34 @@ impl Output for VecDeque<f32> {
         self.extend(samples);
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+pub struct Float32ArrayOutput<'a> {
+    inner: &'a js_sys::Float32Array,
+    offset: u32,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a> Float32ArrayOutput<'a> {
+    pub fn new(inner: &'a js_sys::Float32Array) -> Self {
+        Self { inner, offset: 0 }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Output for Float32ArrayOutput<'_> {
+    fn remaining(&self) -> usize {
+        (self.inner.length() - self.offset) as usize
+    }
+
+    fn write(&mut self, sample: f32) {
+        self.inner.set_index(self.offset, sample);
+        self.offset += 1;
+    }
+
+    fn write_slice(&mut self, samples: &[f32]) {
+        for sample in samples {
+            self.write(*sample);
+        }
+    }
+}

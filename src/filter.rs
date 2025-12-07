@@ -43,7 +43,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         let i_from = (i + 1).saturating_sub(A);
         let i_to = (i + A).min(samples.len() - 1);
         for j in i_from..=i_to {
-            *sum += samples[j] * self.kernel.interpolate(x - j as f32);
+            *sum += samples.get(j) * self.kernel.interpolate(x - j as f32);
         }
     }
 }
