@@ -5,6 +5,7 @@ main() {
     os="$1"
     cargo_clippy
     cargo_test
+    cargo_bench
     wasm_pack_build
     wams_pack_test
     wasm_integration_tests
@@ -16,6 +17,10 @@ cargo_clippy() {
 
 cargo_test() {
     cargo test --workspace --quiet --no-fail-fast --all-features
+}
+
+cargo_bench() {
+    cargo bench
 }
 
 wasm_pack_build() {
