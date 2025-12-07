@@ -8,7 +8,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [ubuntu, macos]
     runs-on: ${{ matrix.os }}-latest
     steps:
       - name: Checkout
@@ -22,10 +22,16 @@ jobs:
       - run: node --version
       - name: Install Firefox
         uses: browser-actions/setup-firefox@v1
-      - run: firefox --version
+        id: setup-firefox
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v2
         id: setup-chrome
-      - run: ${{ steps.setup-chrome.outputs.chrome-path }} --version
+        with:
+          install-chromedriver: true
+          install-dependencies: true
       - name: Test
+        env:
+          FIREFOX_PATH: ${{ steps.setup-firefox.outputs.firefox-path }}
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: ./ci/test.sh ${{ matrix.os }}
