@@ -40,7 +40,7 @@ wasm_pack_test() {
 }
 
 wasm_integration_tests() {
-    node tests.js
+    node --experimental-wasm-modules tests.js
 }
 
 cleanup() {
