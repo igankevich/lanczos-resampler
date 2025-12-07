@@ -20,8 +20,8 @@ jobs:
       - name: Install browsers
         if: matrix.os == 'ubuntu'
         run: |
-          apt-get update -qq
-          apt-get install -qqy --no-install-recommends firefox chromium
+          sudo -n apt-get update -qq
+          sudo -n apt-get install -qqy --no-install-recommends firefox chromium
           firefox --version
           chromium --version
       - name: Test
