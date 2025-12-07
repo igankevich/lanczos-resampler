@@ -7,7 +7,6 @@ main() {
     trap cleanup EXIT
     cargo_clippy
     cargo_test
-    cargo_bench
     wasm_pack_build
     add_browsers_to_path
     wasm_pack_test
@@ -20,10 +19,6 @@ cargo_clippy() {
 
 cargo_test() {
     cargo test --workspace --quiet --no-fail-fast --all-features
-}
-
-cargo_bench() {
-    cargo bench
 }
 
 wasm_pack_build() {
@@ -39,18 +34,21 @@ add_browsers_to_path() {
     export PATH="$workdir"/browsers:"$PATH"
 }
 
+do_wasm_pack_test() {
+    env WASM_BINDGEN_USE_BROWSER=1 \
+        wasm-pack test --headless --node --firefox --chrome "$@"
+    wasm-pack test --node
+}
+
 wasm_pack_test() {
     case "$os" in
-    macos) safari=" --safari" ;;
-    linux) ;;
+    macos) do_wasm_pack_test --safari ;;
+    linux) do_wasm_pack_test ;;
     *)
         printf "Unknown os \"%s\"\n" "$os" >&2
         exit 1
         ;;
     esac
-    env WASM_BINDGEN_USE_BROWSER=1 \
-        wasm-pack test --headless --node --firefox --chrome"$safari"
-    wasm-pack test --node
 }
 
 wasm_integration_tests() {
