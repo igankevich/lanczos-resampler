@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import * as lanczos from "./pkg/lanczos_resampler_js.js";
+import * as lanczos from "./pkg/lanczos_resampler.js";
 
 const input = new Float32Array(1024);
 input.fill(0.1);
