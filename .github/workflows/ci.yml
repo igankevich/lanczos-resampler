@@ -20,9 +20,13 @@ jobs:
         # https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs 
       - name: Install nodejs
         uses: actions/setup-node@v4
-        run: node --version
-      - name: Install firefox
+      - run: node --version
+      - name: Install Firefox
         uses: browser-actions/setup-firefox@v1
-        run: firefox --version
+      - run: firefox --version
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+      - run: ${{ steps.setup-chrome.outputs.chrome-path }} --version
       - name: Test
         run: ./ci/test.sh ${{ strategy.os }}
