@@ -1,6 +1,9 @@
 use crate::Input;
 use crate::LanczosKernel;
 
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
+
 pub struct LanczosFilter<const N: usize, const A: usize> {
     kernel: LanczosKernel<N, A>,
 }
@@ -15,32 +18,33 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         debug_assert_ne!(0, samples.len());
         let i = x.floor() as usize;
         debug_assert!(i < samples.len());
-        let i_from = (i + 1).saturating_sub(A);
-        let i_to = (i + A).min(samples.len() - 1);
         let mut sum = 0.0;
-        for j in i_from..=i_to {
-            sum += samples[j] * self.kernel.interpolate(x - j as f32);
-        }
+        self.do_interpolate(i, x, samples, &mut sum);
         sum
     }
 
     pub fn interpolate_chunk(&self, x: f32, chunk: &[f32], prev_chunk: &[f32]) -> f32 {
         let i = x.floor() as usize;
         let mut sum = 0.0;
-        let n = prev_chunk.len();
         if i < A {
+            let n = prev_chunk.len();
             let i_from = n.saturating_sub(A - i - 1);
             for (j, y) in prev_chunk.iter().enumerate().take(n).skip(i_from) {
                 let k = n - j;
                 sum += y * self.kernel.interpolate(x + k as f32);
             }
         }
-        let i_from = (i + 1).saturating_sub(A);
-        let i_to = (i + A).min(chunk.len() - 1);
-        for (j, y) in chunk.iter().enumerate().take(i_to + 1).skip(i_from) {
-            sum += y * self.kernel.interpolate(x - j as f32);
-        }
+        self.do_interpolate(i, x, chunk, &mut sum);
         sum
+    }
+
+    #[inline]
+    fn do_interpolate(&self, i: usize, x: f32, samples: &(impl Input + ?Sized), sum: &mut f32) {
+        let i_from = (i + 1).saturating_sub(A);
+        let i_to = (i + A).min(samples.len() - 1);
+        for j in i_from..=i_to {
+            *sum += samples[j] * self.kernel.interpolate(x - j as f32);
+        }
     }
 }
 

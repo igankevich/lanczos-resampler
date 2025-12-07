@@ -1,5 +1,9 @@
 use core::f32::consts::PI;
 
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
+pub(crate) use self::x86_64::*;
+
 /// Linear interpolation.
 ///
 /// Gives exact result when t == 1.
@@ -27,6 +31,7 @@ pub fn lanczos_kernel<const A: usize>(mut x: f32) -> f32 {
 /// Hermite splines with second-order finite differences at spline endpoints.
 ///
 /// See <https://en.wikipedia.org/wiki/Cubic_Hermite_spline>.
+#[repr(align(64))]
 pub struct LanczosKernel<const N: usize, const A: usize> {
     // We need only half of the points because Lanczos kernel is symmetric.
     //
@@ -60,9 +65,6 @@ impl<const N: usize, const A: usize> LanczosKernel<N, A> {
             Self::X_MIN,
             Self::X_MAX
         );
-        if x == 0.0 {
-            return 1.0;
-        }
         // Ensure kernel symmetry.
         x = x.abs();
         let i_max = (N - 1) as f32;
@@ -76,9 +78,9 @@ impl<const N: usize, const A: usize> LanczosKernel<N, A> {
                 i0 -= 1;
             }
             let i1 = i0 + 1;
-            let i00 = (i0 > 0).then(|| i0 - 1);
-            let i2 = (i1 < N - 1).then(|| i1 + 1);
-            (i00, i0, i1, i2)
+            let i00 = if i0 > 0 { i0 - 1 } else { i1 };
+            let i11 = if i1 < N - 1 { i1 + 1 } else { i0 };
+            (i00, i0, i1, i11)
         };
         debug_assert!(i0 < N);
         debug_assert!(i1 < N);
@@ -87,18 +89,20 @@ impl<const N: usize, const A: usize> LanczosKernel<N, A> {
         // 2. Compute coefficients.
         let dx = x1 - x0;
         let t = (x - x0) / dx;
-        let t1 = (1.0 - t) * (1.0 - t);
+        let one_sub_t = 1.0 - t;
+        let t1 = one_sub_t * one_sub_t;
         let t2 = t * t;
-        let h00 = (1.0 + t + t) * t1;
+        let tt = t + t;
+        let h00 = (1.0 + tt) * t1;
         let h10 = t * t1;
-        let h01 = t2 * (3.0 - (t + t));
-        let h11 = t2 * (t - 1.0);
+        let h01 = t2 * (3.0 - tt);
+        let h11 = t2 * (-one_sub_t);
         // Finite differences.
-        let dx2 = dx + dx;
-        let m0 = (self.kernel[i1] - self.kernel[i00.unwrap_or(i1)]) / dx2;
-        let m1 = (self.kernel[i11.unwrap_or(i0)] - self.kernel[i0]) / dx2;
+        let dx2 = 1.0 / (dx + dx);
+        let m0 = (self.kernel[i1] - self.kernel[i00]) * dx2;
+        let m1 = (self.kernel[i11] - self.kernel[i0]) * dx2;
         // 3. Interpolate.
-        h00 * self.kernel[i0] + h10 * dx * m0 + h01 * self.kernel[i1] + h11 * dx * m1
+        (h00 * self.kernel[i0] + h10 * dx * m0) + (h01 * self.kernel[i1] + h11 * dx * m1)
     }
 }
 

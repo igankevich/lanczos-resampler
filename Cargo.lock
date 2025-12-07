@@ -233,7 +233,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lanczos-audio-resampler"
+name = "lanczos-resampler"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
@@ -241,6 +241,7 @@ dependencies = [
  "criterion",
  "paste",
  "rand",
+ "seq-macro",
 ]
 
 [[package]]
@@ -443,6 +444,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "seq-macro"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
+
+[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,6 +536,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0562428422c63773dad2c345a1882263bbf4d65cf3f42e90921f787ef5ad58e7"
 dependencies = [
  "wit-bindgen",
+]
+
+[[package]]
+name = "wasm"
+version = "0.1.0"
+dependencies = [
+ "lanczos-resampler",
+ "wasm-bindgen",
 ]
 
 [[package]]

@@ -4,12 +4,14 @@ mod kernel;
 mod output;
 mod resample_chunked;
 mod resample_full;
+mod simd;
 
 #[cfg(test)]
 mod tests;
 
 use self::filter::*;
 use self::kernel::*;
+use self::simd::*;
 
 pub use self::input::*;
 pub use self::output::*;

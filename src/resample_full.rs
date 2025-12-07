@@ -3,6 +3,9 @@ use crate::Input;
 use crate::LanczosFilter;
 use crate::Output;
 
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
+
 /// Panics when input length or output sample rate is too large.
 pub const fn output_len(
     input_len: usize,
@@ -104,7 +107,7 @@ pub fn resample_into<const N: usize, const A: usize>(
     input_len
 }
 
-fn do_resample_into<const N: usize, const A: usize>(
+pub(crate) fn do_resample_into_scalar<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
     output: &mut impl Output,
 ) {
@@ -117,6 +120,23 @@ fn do_resample_into<const N: usize, const A: usize>(
         let x = lerp(x0, x1, i as f32 / i_max);
         output.write(filter.interpolate(x, input).clamp(-1.0, 1.0));
     }
+}
+
+fn do_resample_into<const N: usize, const A: usize>(
+    input: &(impl Input + ?Sized),
+    output: &mut impl Output,
+) {
+    /*
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx")
+        && std::is_x86_feature_detected!("avx2")
+        && std::is_x86_feature_detected!("sse4.1")
+        && std::is_x86_feature_detected!("sse")
+    {
+        return x86_64::do_resample_into_avx::<N, A>(input, output);
+    }
+    */
+    do_resample_into_scalar::<N, A>(input, output);
 }
 
 #[cfg(test)]
