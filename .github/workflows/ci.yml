@@ -10,10 +10,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu, macos, windows]
-    runs-on: ${{ strategy.os }}-latest
+    runs-on: ${{ matrix.os }}-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.4
+        uses: actions/checkout@v6
         # https://drager.github.io/wasm-pack/installer/
       - name: Install wasm-pack
         run: npm install -g wasm-pack
@@ -29,4 +29,4 @@ jobs:
         id: setup-chrome
       - run: ${{ steps.setup-chrome.outputs.chrome-path }} --version
       - name: Test
-        run: ./ci/test.sh ${{ strategy.os }}
+        run: ./ci/test.sh ${{ matrix.os }}

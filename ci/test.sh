@@ -11,7 +11,7 @@ main() {
 }
 
 cargo_clippy() {
-    cargo clippy --workspace --quiet --all-features --all-targets -- --deny
+    cargo clippy --workspace --quiet --all-features --all-targets -- --deny warnings
 }
 
 cargo_test() {
