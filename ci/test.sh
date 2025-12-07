@@ -26,15 +26,15 @@ wasm_pack_build() {
 }
 
 wasm_pack_test() {
-    wasm-pack test --node
+    wasm-pack test --release --node
     case "$os" in
     ubuntu)
-        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --firefox
-        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --chrome
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --release --headless --firefox
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --release --headless --chrome
         ;;
     # TODO Fails with "Error: driver failed to bind port during startup"
     #macos)
-    #    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --headless --safari
+    #    env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --release --headless --safari
     #    ;;
     esac
 }
