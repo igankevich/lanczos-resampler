@@ -1,31 +1,26 @@
-use crate::ChunkedResampler;
+use super::default::ChunkedResampler as RustChunkedResampler;
 use crate::Float32ArrayOutput;
-use crate::output_len;
-use crate::resample_into;
 use core::mem::align_of;
 use core::mem::size_of;
 use js_sys::Float32Array;
 use wasm_bindgen::prelude::*;
 
-const N: usize = 16;
-const A: usize = 3;
-const CHUNKED_RESAMPLER_LEN: usize = size_of::<ChunkedResampler>();
+const CHUNKED_RESAMPLER_LEN: usize = size_of::<RustChunkedResampler>();
 
-const _: () = assert!(align_of::<WasmChunkedResampler>() == align_of::<ChunkedResampler>());
-const _: () = assert!(size_of::<WasmChunkedResampler>() == size_of::<ChunkedResampler>());
+const _: () = assert!(align_of::<ChunkedResampler>() == align_of::<RustChunkedResampler>());
+const _: () = assert!(size_of::<ChunkedResampler>() == size_of::<RustChunkedResampler>());
 
-// TODO rename
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
-pub struct WasmChunkedResampler([u8; CHUNKED_RESAMPLER_LEN]);
+pub struct ChunkedResampler([u8; CHUNKED_RESAMPLER_LEN]);
 
 #[wasm_bindgen]
-impl WasmChunkedResampler {
+impl ChunkedResampler {
     #[wasm_bindgen(constructor)]
     pub fn new(input_sample_rate: usize, output_sample_rate: usize) -> Self {
         let mut buf = [0_u8; CHUNKED_RESAMPLER_LEN];
-        let resampler = ChunkedResampler::new(input_sample_rate, output_sample_rate);
+        let resampler = RustChunkedResampler::new(input_sample_rate, output_sample_rate);
         // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
         buf.copy_from_slice(unsafe {
             core::slice::from_raw_parts(
@@ -63,44 +58,14 @@ impl WasmChunkedResampler {
     }
 
     #[inline]
-    fn as_ref(&self) -> &ChunkedResampler {
+    fn as_ref(&self) -> &RustChunkedResampler {
         // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
         unsafe { core::mem::transmute(self) }
     }
 
     #[inline]
-    fn as_mut(&mut self) -> &mut ChunkedResampler {
+    fn as_mut(&mut self) -> &mut RustChunkedResampler {
         // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
         unsafe { core::mem::transmute(self) }
     }
-}
-
-#[wasm_bindgen(js_name = "outputLength")]
-pub fn wasm_output_length(
-    input_len: usize,
-    input_sample_rate: usize,
-    output_sample_rate: usize,
-) -> usize {
-    output_len(input_len, input_sample_rate, output_sample_rate)
-}
-
-#[wasm_bindgen]
-pub fn wasm_resample(
-    input: Float32Array,
-    input_sample_rate: usize,
-    output_sample_rate: usize,
-) -> Float32Array {
-    let output_len = output_len(
-        input.length() as usize,
-        input_sample_rate,
-        output_sample_rate,
-    );
-    let output = Float32Array::new_with_length(output_len as u32);
-    resample_into::<N, A>(&input, &mut Float32ArrayOutput::new(&output));
-    output
-}
-
-#[wasm_bindgen(js_name = "resampleInto")]
-pub fn wasm_resample_into(input: Float32Array, output: Float32Array) -> usize {
-    resample_into::<N, A>(&input, &mut Float32ArrayOutput::new(&output))
 }

@@ -8,18 +8,17 @@ extern crate alloc;
 #[cfg(any(feature = "std", test))]
 extern crate std;
 
-mod chunked_resampler;
+mod chunked;
 mod filter;
 mod input;
 mod kernel;
 mod math;
 mod output;
-mod resample_full;
 #[cfg(target_arch = "x86_64")]
 mod simd;
-
 #[cfg(test)]
 mod tests;
+mod whole;
 
 use self::filter::*;
 use self::kernel::*;
@@ -27,14 +26,10 @@ use self::math::*;
 #[cfg(target_arch = "x86_64")]
 use self::simd::*;
 
-pub use self::chunked_resampler::*;
+pub use self::chunked::*;
 pub use self::input::*;
 pub use self::output::*;
-pub use self::resample_full::*;
+pub use self::whole::*;
 
-#[cfg(target_arch = "wasm32")]
-#[cfg_attr(docsrs, doc(cfg(target_arch = "wasm32")))]
-mod wasm;
-#[cfg(all(target_arch = "wasm32", not(test)))]
-#[cfg_attr(docsrs, doc(cfg(target_arch = "wasm32")))]
-pub use self::wasm::*;
+pub(crate) const DEFAULT_N: usize = 16;
+pub(crate) const DEFAULT_A: usize = 3;

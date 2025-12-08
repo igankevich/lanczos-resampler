@@ -1,12 +1,15 @@
+use crate::DEFAULT_A;
+use crate::DEFAULT_N;
 use crate::Input;
 use crate::LanczosFilter;
 use crate::Output;
 use crate::lerp;
+use crate::whole::default::output_len;
 
 /// A [`BasicChunkedResampler`] with default parameters: _N = 16, A = 3_.
-pub type ChunkedResampler = BasicChunkedResampler<16, 3>;
+pub type ChunkedResampler = BasicChunkedResampler<DEFAULT_N, DEFAULT_A>;
 
-/// A resampler that can process chunked audio input.
+/// A resampler that processes audio input in chunks.
 ///
 /// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
 /// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
@@ -23,6 +26,7 @@ pub type ChunkedResampler = BasicChunkedResampler<16, 3>;
 ///
 /// `ChunkedResampler` produces slightly different output compared to processing the whole input at once.
 /// If this is undesired, consider using free-standing [`resample`](crate::resample) function.
+#[derive(Clone)]
 pub struct BasicChunkedResampler<const N: usize, const A: usize> {
     filter: LanczosFilter<N, A>,
     input_sample_rate: usize,
@@ -36,6 +40,7 @@ pub struct BasicChunkedResampler<const N: usize, const A: usize> {
 
 impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     /// Creates new instance of resampler with the specified input and output sample rates.
+    #[inline]
     pub fn new(input_sample_rate: usize, output_sample_rate: usize) -> Self {
         Self {
             filter: LanczosFilter::new(),
@@ -48,11 +53,13 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     }
 
     /// Returns input sample rate in Hz.
+    #[inline]
     pub fn input_sample_rate(&self) -> usize {
         self.input_sample_rate
     }
 
     /// Returns output sample rate in Hz.
+    #[inline]
     pub fn output_sample_rate(&self) -> usize {
         self.output_sample_rate
     }
@@ -61,6 +68,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     ///
     /// After changing the sample rate you should consider updating buffer size to
     /// [`max_output_chunk_len`](Self::max_output_chunk_len).
+    #[inline]
     pub fn set_output_sample_rate(&mut self, value: usize) {
         self.output_sample_rate = value;
     }
@@ -72,22 +80,13 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     ///
     /// You should consider updating buffer size every time you change output sample rate via
     /// [`set_output_sample_rate`](Self::set_output_sample_rate).
+    #[inline]
     pub fn max_output_chunk_len(&self, input_chunk_len: usize) -> usize {
-        crate::output_len(
+        output_len(
             input_chunk_len,
             self.input_sample_rate,
             self.output_sample_rate,
         ) + 1
-    }
-
-    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
-        adjust_lengths(
-            input_len,
-            output_len,
-            self.input_sample_rate,
-            self.output_sample_rate,
-            self.remainder,
-        )
     }
 
     /// Resamples input signal chunk from the source to the target sample rate and appends the
@@ -157,8 +156,19 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             self.prev_chunk_len += 1;
         }
     }
+
+    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
+        adjust_lengths(
+            input_len,
+            output_len,
+            self.input_sample_rate,
+            self.output_sample_rate,
+            self.remainder,
+        )
+    }
 }
 
+#[inline]
 fn adjust_lengths(
     mut input_len: usize,
     mut output_len: usize,
@@ -205,8 +215,8 @@ fn adjust_lengths(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resample;
     use crate::tests::*;
+    use crate::whole::default::BasicWholeResampler;
     use alloc::vec;
     use alloc::vec::Vec;
 
@@ -219,7 +229,8 @@ mod tests {
         const M: usize = 10;
         const O: usize = 20;
         let input = sine_wave(M);
-        let expected_output = resample::<N, A>(&input[..], M, O);
+        let whole_resampler = BasicWholeResampler::<N, A>::new();
+        let expected_output = whole_resampler.resample_whole(&input[..], M, O);
         let mut resampler = BasicChunkedResampler::<N, A>::new(M, O);
         let mut output = [f32::NAN; O];
         let mut output = &mut output[..];
@@ -232,13 +243,14 @@ mod tests {
 
     fn resample_streaming<const N: usize, const A: usize>() {
         // Check that streaming resampling gives the same result as resampling in one go.
+        let whole_resampler = BasicWholeResampler::<N, A>::new();
         arbtest(|u| {
             let input_sample_rate = 2 * u.int_in_range(1..=100)?;
             let input_len: usize = input_sample_rate * u.int_in_range(1..=10)?;
             let input = sine_wave(input_len);
             let output_sample_rate = 2 * input_sample_rate;
             let expected_output =
-                resample::<N, A>(&input[..], input_sample_rate, output_sample_rate);
+                whole_resampler.resample_whole(&input[..], input_sample_rate, output_sample_rate);
             let min_chunk_len = input_sample_rate;
             let max_chunk_len = input_sample_rate;
             let mut num_chunks = input_len / max_chunk_len;

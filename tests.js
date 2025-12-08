@@ -1,7 +1,7 @@
 import assert from "node:assert";
-import { WasmChunkedResampler } from "./pkg/lanczos_resampler.js";
+import { ChunkedResampler } from "./pkg/lanczos_resampler.js";
 
-const resampler = new WasmChunkedResampler(44100, 48000);
+const resampler = new ChunkedResampler(44100, 48000);
 const chunk = new Float32Array(1024);
 chunk.fill(0.1);
 const output = new Float32Array(resampler.maxOutputChunkLength(chunk.length));

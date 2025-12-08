@@ -1,13 +1,14 @@
 #![allow(missing_docs)]
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use lanczos_resampler::BasicChunkedResampler;
+use lanczos_resampler::ChunkedResampler;
+use lanczos_resampler::WholeResampler;
 use rand::Rng;
 use rand::rng;
 use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("resample 16/3", |b| {
+    c.bench_function("resample whole", |b| {
         b.iter_batched(
             || {
                 let n = 44100 * 6;
@@ -16,19 +17,18 @@ fn criterion_benchmark(c: &mut Criterion) {
                     input.push(rng().random_range(-1.0..=1.0));
                 }
                 let output = vec![f32::NAN; n];
-                (input, output)
+                let resampler = WholeResampler::new();
+                (resampler, input, output)
             },
-            |(input, mut output)| {
-                lanczos_resampler::resample_into::<16, 3>(
-                    black_box(&input[..]),
-                    black_box(&mut &mut output[..]),
-                );
+            |(resampler, input, mut output)| {
+                resampler
+                    .resample_whole_into(black_box(&input[..]), black_box(&mut &mut output[..]));
             },
             BatchSize::SmallInput,
         )
     });
     let n = 1024;
-    let mut resampler = BasicChunkedResampler::<16, 3>::new(44100, 48000);
+    let mut resampler = ChunkedResampler::new(44100, 48000);
     let input = vec![0.1; n];
     let output_len = lanczos_resampler::output_len(
         n,
@@ -36,7 +36,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         resampler.output_sample_rate(),
     );
     let mut output = vec![0.0; output_len];
-    c.bench_function("resample check", |b| {
+    c.bench_function("resample chunk", |b| {
         b.iter(|| {
             resampler.resample_chunk(black_box(&input[..]), black_box(&mut &mut output[..]));
         })

@@ -36,6 +36,7 @@ pub fn lanczos_kernel<const A: usize>(mut x: f32) -> f32 {
 /// Hermite splines with second-order finite differences at spline endpoints.
 ///
 /// See <https://en.wikipedia.org/wiki/Cubic_Hermite_spline>.
+#[derive(Clone)]
 pub struct LanczosKernel<const N: usize, const A: usize> {
     // We need only half of the points because Lanczos kernel is symmetric.
     //
@@ -107,6 +108,12 @@ impl<const N: usize, const A: usize> LanczosKernel<N, A> {
         let m1 = (self.kernel[i11] - self.kernel[i0]) * dx2;
         // 3. Interpolate.
         (h00 * self.kernel[i0] + h10 * dx * m0) + (h01 * self.kernel[i1] + h11 * dx * m1)
+    }
+}
+
+impl<const N: usize, const A: usize> Default for LanczosKernel<N, A> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
