@@ -1,13 +1,26 @@
+use core::ops::Range;
+
+/// Resampler's input, a collection of samples.
+///
+/// All samples are [`f32`], little-endian.
 pub trait Input {
+    /// Returns the sample at index `i`.
+    ///
+    /// Panics if the index is out of bounds.
     fn get(&self, i: usize) -> f32;
 
+    /// Returns the number of samples.
     fn len(&self) -> usize;
 
+    /// Returns `true` if the input is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    fn take(&self, n: usize) -> impl Input;
+    /// Returns a slice of the input containing the samples in the specified range.
+    ///
+    /// Panics if the range crosses the input bounds.
+    fn slice(&self, range: Range<usize>) -> impl Input;
 }
 
 impl Input for &[f32] {
@@ -23,8 +36,8 @@ impl Input for &[f32] {
         (*self as &[f32]).is_empty()
     }
 
-    fn take(&self, n: usize) -> impl Input {
-        &self[..n]
+    fn slice(&self, range: Range<usize>) -> impl Input {
+        &self[range]
     }
 }
 
@@ -41,8 +54,8 @@ impl Input for [f32] {
         (self as &[f32]).is_empty()
     }
 
-    fn take(&self, n: usize) -> impl Input {
-        &self[..n]
+    fn slice(&self, range: Range<usize>) -> impl Input {
+        &self[range]
     }
 }
 
@@ -59,8 +72,8 @@ impl<const N: usize> Input for [f32; N] {
         N == 0
     }
 
-    fn take(&self, n: usize) -> impl Input {
-        &self[..n]
+    fn slice(&self, range: Range<usize>) -> impl Input {
+        &self[range]
     }
 }
 
@@ -78,7 +91,7 @@ impl Input for js_sys::Float32Array {
         self.length() == 0
     }
 
-    fn take(&self, n: usize) -> impl Input {
-        self.slice(0, n as u32)
+    fn slice(&self, range: Range<usize>) -> impl Input {
+        self.slice(range.start as u32, range.end as u32)
     }
 }

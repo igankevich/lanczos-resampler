@@ -24,7 +24,7 @@ impl I256 {
     }
 }
 
-impl std::ops::Deref for I256 {
+impl core::ops::Deref for I256 {
     type Target = [i32; 8];
 
     fn deref(&self) -> &Self::Target {
@@ -32,7 +32,7 @@ impl std::ops::Deref for I256 {
     }
 }
 
-impl std::ops::DerefMut for I256 {
+impl core::ops::DerefMut for I256 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -75,7 +75,7 @@ impl F256 {
     }
 }
 
-impl std::ops::Deref for F256 {
+impl core::ops::Deref for F256 {
     type Target = [f32; 8];
 
     fn deref(&self) -> &Self::Target {
@@ -83,7 +83,7 @@ impl std::ops::Deref for F256 {
     }
 }
 
-impl std::ops::DerefMut for F256 {
+impl core::ops::DerefMut for F256 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

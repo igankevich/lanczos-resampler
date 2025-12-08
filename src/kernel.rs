@@ -1,5 +1,8 @@
 use core::f32::consts::PI;
 
+use crate::floor;
+use crate::sin;
+
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
 
@@ -26,14 +29,13 @@ pub fn lanczos_kernel<const A: usize>(mut x: f32) -> f32 {
     let a = A as f32;
     let pi_x = PI * x;
     let pi_x_a = pi_x / a;
-    f32::sin(pi_x) * f32::sin(pi_x_a) / (pi_x * pi_x_a)
+    sin(pi_x) * sin(pi_x_a) / (pi_x * pi_x_a)
 }
 
 /// Interpolates `lanczos_kernel` in the range _[-A; A]_ on a grid of `2 * N - 1` points using cubic
 /// Hermite splines with second-order finite differences at spline endpoints.
 ///
 /// See <https://en.wikipedia.org/wiki/Cubic_Hermite_spline>.
-#[repr(align(64))]
 pub struct LanczosKernel<const N: usize, const A: usize> {
     // We need only half of the points because Lanczos kernel is symmetric.
     //
@@ -75,7 +77,7 @@ impl<const N: usize, const A: usize> LanczosKernel<N, A> {
         // 1. Find 2-4 closest points.
         let (i00, i0, i1, i11) = {
             let tmp = x / Self::X_MAX;
-            let mut i0 = (tmp * i_max).floor() as usize;
+            let mut i0 = floor(tmp * i_max) as usize;
             if i0 == N - 1 {
                 i0 -= 1;
             }

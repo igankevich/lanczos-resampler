@@ -1,7 +1,8 @@
 use core::mem::MaybeUninit;
-use std::collections::VecDeque;
 
+/// A writable [`f32`] audio sample.
 pub trait WriteF32 {
+    /// Sets sample's value to `value`.
     fn write(&mut self, value: f32);
 }
 
@@ -17,17 +18,21 @@ impl WriteF32 for MaybeUninit<f32> {
     }
 }
 
+/// Resampler's output, a buffer of samples.
 pub trait Output {
-    fn remaining(&self) -> usize;
+    /// Returns the remaining length of the buffer or `None` if it's not known.
+    fn remaining(&self) -> Option<usize>;
 
+    /// Appends `sample` to the buffer.
     fn write(&mut self, sample: f32);
 
+    /// Appends `samples` to the buffer.
     fn write_slice(&mut self, samples: &[f32]);
 }
 
 impl<W: WriteF32> Output for &mut [W] {
-    fn remaining(&self) -> usize {
-        self.len()
+    fn remaining(&self) -> Option<usize> {
+        Some(self.len())
     }
 
     fn write(&mut self, sample: f32) {
@@ -46,9 +51,11 @@ impl<W: WriteF32> Output for &mut [W] {
     }
 }
 
-impl Output for Vec<f32> {
-    fn remaining(&self) -> usize {
-        isize::MAX as usize - self.len()
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+impl Output for alloc::vec::Vec<f32> {
+    fn remaining(&self) -> Option<usize> {
+        None
     }
 
     fn write(&mut self, sample: f32) {
@@ -60,9 +67,11 @@ impl Output for Vec<f32> {
     }
 }
 
-impl Output for VecDeque<f32> {
-    fn remaining(&self) -> usize {
-        isize::MAX as usize - self.len()
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+impl Output for alloc::collections::VecDeque<f32> {
+    fn remaining(&self) -> Option<usize> {
+        None
     }
 
     fn write(&mut self, sample: f32) {
@@ -75,32 +84,9 @@ impl Output for VecDeque<f32> {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub struct Float32ArrayOutput<'a> {
-    inner: &'a js_sys::Float32Array,
-    offset: u32,
-}
+#[cfg_attr(docsrs, doc(cfg(target_arch = "wasm32")))]
+mod wasm32;
 
 #[cfg(target_arch = "wasm32")]
-impl<'a> Float32ArrayOutput<'a> {
-    pub fn new(inner: &'a js_sys::Float32Array) -> Self {
-        Self { inner, offset: 0 }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl Output for Float32ArrayOutput<'_> {
-    fn remaining(&self) -> usize {
-        (self.inner.length() - self.offset) as usize
-    }
-
-    fn write(&mut self, sample: f32) {
-        self.inner.set_index(self.offset, sample);
-        self.offset += 1;
-    }
-
-    fn write_slice(&mut self, samples: &[f32]) {
-        for sample in samples {
-            self.write(*sample);
-        }
-    }
-}
+#[cfg_attr(docsrs, doc(cfg(target_arch = "wasm32")))]
+pub use self::wasm32::*;

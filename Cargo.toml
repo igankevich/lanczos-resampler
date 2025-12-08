@@ -2,11 +2,26 @@
 name = "lanczos-resampler"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+homepage = "https://github.com/igankevich/lanczos-resampler"
+repository = "https://github.com/igankevich/lanczos-resampler"
+documentation = "https://docs.rs/lanczos-resampler"
+readme = "README.md"
+description = "Audio resampler for Rust/JS that uses Lanczos filter."
+keywords = ["upsampling", "downsampling", "interpolation", "webaudio"]
+categories = ["multimedia::audio", "wasm"]
+include = ["**/*.rs", "Cargo.toml", "README.md"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
+
 [dependencies]
+libm = "0.2.15"
 seq-macro = "0.3.6"
 
 [dev-dependencies]
@@ -27,7 +42,7 @@ getrandom = { version = "0.3.4", features = ["wasm_js"] }
 wasm-bindgen-test = "0.3.56"
 
 [lints.rust]
-#missing_docs = "warn"
+missing_docs = "warn"
 
 [lints.clippy]
 unwrap_used = "deny"
@@ -36,6 +51,8 @@ missing_safety_doc = "deny"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [package.metadata.wasm-pack.profile.release]
 # https://github.com/drager/wasm-pack/issues/1441#issuecomment-2886461752
@@ -45,7 +62,7 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 name = "resample"
 harness = false
 
-# This is WASM configuration.
+# This is WASM-specific configuration.
 [profile.release]
 panic = "abort"
 lto = true

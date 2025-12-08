@@ -8,13 +8,14 @@ use core::arch::x86_64::*;
 
 pub(crate) fn do_resample_into_avx<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
+    output_len: usize,
     output: &mut impl Output,
 ) {
     unsafe {
         let filter = LanczosFilter::<N, A>::new();
         let x0 = _mm256_setzero_ps();
         let x1 = _mm256_set1_ps((input.len() - 1) as f32);
-        let n = output.remaining();
+        let n = output_len;
         let i_max = _mm256_set1_ps((n - 1) as f32);
         let steps = n / 8;
         for i0 in (0..steps * 8).step_by(8) {
@@ -47,6 +48,8 @@ mod tests {
     use super::*;
     use crate::do_resample_into_scalar;
     use crate::tests::*;
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     parameterize! {
         do_resample_into_works
@@ -75,21 +78,15 @@ mod tests {
         output_sample_rate: usize,
     ) -> Vec<f32> {
         let input_len = input.len();
-        if input_len == 0 {
+        if input_len <= 1 {
             return Vec::new();
         }
         let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
-        if output_len == 0 {
+        if output_len <= 1 {
             return Vec::new();
         }
-        if input_len == 1 {
-            return vec![input.get(0); output_len];
-        }
-        if output_len == 1 {
-            return vec![mean(input); output_len];
-        }
         let mut output = Vec::with_capacity(output_len);
-        do_resample_into_avx::<N, A>(input, &mut output.spare_capacity_mut());
+        do_resample_into_avx::<N, A>(input, output_len, &mut output.spare_capacity_mut());
         // SAFETY: We initialize all elements in `do_resample_into_avx`.
         unsafe { output.set_len(output_len) }
         output
@@ -101,21 +98,15 @@ mod tests {
         output_sample_rate: usize,
     ) -> Vec<f32> {
         let input_len = input.len();
-        if input_len == 0 {
+        if input_len <= 1 {
             return Vec::new();
         }
         let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
-        if output_len == 0 {
+        if output_len <= 1 {
             return Vec::new();
         }
-        if input_len == 1 {
-            return vec![input.get(0); output_len];
-        }
-        if output_len == 1 {
-            return vec![mean(input); output_len];
-        }
         let mut output = Vec::with_capacity(output_len);
-        do_resample_into_scalar::<N, A>(input, &mut output.spare_capacity_mut());
+        do_resample_into_scalar::<N, A>(input, output_len, &mut output.spare_capacity_mut());
         // SAFETY: We initialize all elements in `do_resample_into_scalar`.
         unsafe { output.set_len(output_len) }
         output

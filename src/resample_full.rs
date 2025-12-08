@@ -3,15 +3,23 @@ use crate::LanczosFilter;
 use crate::Output;
 use crate::lerp;
 
+#[cfg(any(feature = "alloc", test))]
+use alloc::vec::Vec;
+
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
 
-/// Calculates resampled length of the input for given input/output sample rates.
+/// Calculates resampled length of the input for given input/output sample
+/// rates.
 ///
-/// This function doesn't track division remainders and should only be used when resampling the
-/// whole audio track.
+/// # Panics
 ///
-/// Panics when input length or output sample rate is too large.
+/// Panics when the input length or output the sample rate is too large.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
 pub const fn output_len(
     input_len: usize,
     input_sample_rate: usize,
@@ -21,107 +29,132 @@ pub const fn output_len(
         .expect("Input length or output sample rate is too large")
 }
 
-/// Calculates resampled length of the input for given input/output sample rates.
-///
-/// This function doesn't track division remainders and should only be used when resampling the
-/// whole audio track.
+/// Calculates resampled length of the input for given input/output sample
+/// rates.
 ///
 /// Returns `None` when input length or output sample rate is too large.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
 pub const fn checked_output_len(
     input_len: usize,
     input_sample_rate: usize,
     output_sample_rate: usize,
 ) -> Option<usize> {
-    if input_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
+    if input_len <= 1 || input_sample_rate == 0 || output_sample_rate == 0 {
         return Some(0);
     }
     if input_sample_rate == output_sample_rate {
         return Some(input_len);
     }
-    match input_len.checked_mul(output_sample_rate) {
+    let output_len = match input_len.checked_mul(output_sample_rate) {
         Some(numerator) => Some(numerator / input_sample_rate),
         None => (input_len / input_sample_rate).checked_mul(output_sample_rate),
+    };
+    match output_len {
+        Some(output_len) if output_len <= 1 => Some(0),
+        output_len => output_len,
     }
 }
 
-/// Uses Welford's algorithm.
-fn mean(input: &(impl Input + ?Sized)) -> f32 {
-    let mut avg = 0.0;
-    let mut n = 1;
-    for i in 0..input.len() {
-        avg += (input.get(i) - avg) / n as f32;
-        n += 1;
-    }
-    avg
-}
-
-/// Panics when input length or output sample rate is too large.
+/// Resamples input signal from the source to the target sample rate and
+/// returns the resulting output signal as a vector.
+///
+/// This function uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
+/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
+/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
+/// output is clamped to _[-1; 1]_.
+///
+/// # Parameters
+///
+/// The recommended parameters are _N = 16, A = 3_. Using _A = 2_ might improve performance a
+/// little bit. Using larger _N_ will techincally improve precision, but precision isn't a good
+/// metric for audio signal. With _N = 16_ the kernel fits into exactly 64 B (the size of a cache line).
+///
+/// # Edge cases
+///
+/// Returns an empty vector when either the input length or calculated output length is less than 2.
+///
+/// # Panics
+///
+/// Panics when either the input length or the output sample rate is too large.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub fn resample<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
     input_sample_rate: usize,
     output_sample_rate: usize,
 ) -> Vec<f32> {
+    // TODO Don't resample when rates are equal. Need to change tests after that.
     let input_len = input.len();
-    if input_len == 0 {
+    if input_len <= 1 {
         return Vec::new();
     }
     let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
-    if output_len == 0 {
+    if output_len <= 1 {
         return Vec::new();
     }
-    if input_len == 1 {
-        return vec![input.get(0); output_len];
-    }
-    if output_len == 1 {
-        return vec![mean(input); output_len];
-    }
     let mut output = Vec::with_capacity(output_len);
-    do_resample_into::<N, A>(input, &mut output.spare_capacity_mut());
+    do_resample_into::<N, A>(input, output_len, &mut output.spare_capacity_mut());
     // SAFETY: We initialize all elements in `do_resample_into`.
     unsafe { output.set_len(output_len) }
     output
 }
 
-/// Panics when input length or output sample rate is too large.
+/// This is a variant of [`resample`] that doesn't use memory allocation.
+///
+/// Returns the number of samples read from the input. Currently this is either 0 (see "Panics") or
+/// the input length.
+///
+/// # Edge cases
+///
+/// Returns 0 when either the input length or remaining output length is less than 2.
+///
+/// # Panics
+///
+/// - Panics when the output isn't large enough to hold all the resampled points.
+///   Use [`output_len`] to ensure that the buffer size is sufficient.
+/// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
 pub fn resample_into<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
-    input_sample_rate: usize,
-    output_sample_rate: usize,
     output: &mut impl Output,
 ) -> usize {
     let input_len = input.len();
-    if input_len == 0 {
+    if input_len <= 1 {
         return 0;
     }
-    let output_len =
-        output_len(input_len, input_sample_rate, output_sample_rate).min(output.remaining());
-    if output_len == 0 {
+    let output_len = output
+        .remaining()
+        .expect("`resample_into` doesn't support unbounded outputs");
+    if output_len <= 1 {
         return 0;
     }
-    if input_len == 1 {
-        for _ in 0..output_len {
-            output.write(input.get(0));
-        }
-        return 1;
-    }
-    if output_len == 1 {
-        output.write(mean(input));
-        return input_len;
-    }
-    do_resample_into::<N, A>(&input.take(input_len), output);
+    do_resample_into::<N, A>(input, output_len, output);
     input_len
 }
 
 pub(crate) fn do_resample_into_scalar<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
+    output_len: usize,
     output: &mut impl Output,
 ) {
     let filter = LanczosFilter::<N, A>::new();
     let x0 = 0.0;
     let x1 = (input.len() - 1) as f32;
-    let n = output.remaining();
-    let i_max = (n - 1) as f32;
-    for i in 0..n {
+    let i_max = (output_len - 1) as f32;
+    for i in 0..output_len {
         let x = lerp(x0, x1, i as f32 / i_max);
         output.write(filter.interpolate(x, input).clamp(-1.0, 1.0));
     }
@@ -129,8 +162,11 @@ pub(crate) fn do_resample_into_scalar<const N: usize, const A: usize>(
 
 fn do_resample_into<const N: usize, const A: usize>(
     input: &(impl Input + ?Sized),
+    output_len: usize,
     output: &mut impl Output,
 ) {
+    // TODO Current SIMD implementation is slow. Should consider using SIMD for interleaved
+    // data...
     /*
     #[cfg(target_arch = "x86_64")]
     if std::is_x86_feature_detected!("avx")
@@ -141,13 +177,14 @@ fn do_resample_into<const N: usize, const A: usize>(
         return x86_64::do_resample_into_avx::<N, A>(input, output);
     }
     */
-    do_resample_into_scalar::<N, A>(input, output);
+    do_resample_into_scalar::<N, A>(input, output_len, output);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests::*;
+    use alloc::vec;
 
     parameterize! {
         resample_into_works
@@ -191,13 +228,8 @@ mod tests {
             let mut actual =
                 vec![f32::NAN; output_len(input_len, input_sample_rate, output_sample_rate)];
             let mut output = &mut actual[..];
-            let num_read = resample_into::<N, A>(
-                &input[..],
-                input_sample_rate,
-                output_sample_rate,
-                &mut output,
-            );
-            assert_eq!(0, output.len());
+            let num_read = resample_into::<N, A>(&input[..], &mut output);
+            assert_eq!(0, output.len(), "Input length = {input_len}");
             assert_eq!(expected, actual);
             if !expected.is_empty() {
                 assert_eq!(input_len, num_read);
@@ -239,12 +271,5 @@ mod tests {
             );
             Ok(())
         });
-    }
-
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn mean_works() {
-        assert_eq!(1.0, mean(&[1.0, 1.0]));
-        assert_eq!(2.0, mean(&[2.0, 2.0]));
     }
 }

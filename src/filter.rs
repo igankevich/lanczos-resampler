@@ -1,5 +1,6 @@
 use crate::Input;
 use crate::LanczosKernel;
+use crate::floor;
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
@@ -16,15 +17,20 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
 
     pub fn interpolate(&self, x: f32, samples: &(impl Input + ?Sized)) -> f32 {
         debug_assert_ne!(0, samples.len());
-        let i = x.floor() as usize;
+        let i = floor(x) as usize;
         debug_assert!(i < samples.len());
         let mut sum = 0.0;
         self.do_interpolate(i, x, samples, &mut sum);
         sum
     }
 
-    pub fn interpolate_chunk(&self, x: f32, chunk: &[f32], prev_chunk: &[f32]) -> f32 {
-        let i = x.floor() as usize;
+    pub fn interpolate_chunk(
+        &self,
+        x: f32,
+        chunk: &(impl Input + ?Sized),
+        prev_chunk: &[f32],
+    ) -> f32 {
+        let i = floor(x) as usize;
         let mut sum = 0.0;
         if i < A {
             let n = prev_chunk.len();
@@ -53,6 +59,7 @@ mod tests {
     use super::*;
     use crate::lerp;
     use crate::tests::*;
+    use alloc::vec;
     use arbtest::arbtest;
 
     parameterize! {

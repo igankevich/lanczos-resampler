@@ -7,6 +7,8 @@ main() {
     trap cleanup EXIT
     cargo_clippy
     cargo_test
+    cargo_build
+    enable_cdylib
     wasm_pack_build
     wasm_pack_test
     wasm_integration_tests
@@ -20,8 +22,20 @@ cargo_test() {
     cargo test --workspace --quiet --no-fail-fast --all-features
 }
 
+cargo_build() {
+    cargo build
+    cargo build --features alloc
+    cargo build --features std
+}
+
+enable_cdylib() {
+    sed -i -e 's/crate-type = .*/crate-type = ["cdylib", "rlib"]/' Cargo.toml
+}
+
 wasm_pack_build() {
     wasm-pack build
+    wasm-pack build . --features alloc
+    wasm-pack build . --features std
     du -chd0 pkg
 }
 

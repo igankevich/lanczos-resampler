@@ -1,37 +1,9 @@
 use crate::lerp;
 
+use alloc::vec::Vec;
 use arbitrary::Unstructured;
 pub(crate) use arbtest::arbtest;
 use core::f32::consts::PI;
-
-/*
-fn do_lanczos_kernel_precision(n: usize, a: f32) -> f32 {
-    let lanczos = DynamicLanczosKernel::new(n, a);
-    let mut rng = rand::rng();
-    let mut max_residual = 0.0;
-    for _ in 0..100_000 {
-        let x = rng.random_range(0.0..=a);
-        let residual = (dynamic_lanczos_kernel(x, a) - lanczos.interpolate(x)).abs();
-        if residual > max_residual {
-            max_residual = residual;
-        }
-    }
-    eprintln!("{n} {a} {max_residual}");
-    max_residual
-}
-
-#[test]
-fn lanczos_kernel_precision() {
-    for a in [2.0] {
-        for n in 2..10000 {
-            let residual = do_lanczos_kernel_precision(n, a);
-            if residual <= 1e-6 {
-                break;
-            }
-        }
-    }
-}
-*/
 
 pub fn write_samples(filename: &str, data: &[f32]) {
     use std::io::Write;
@@ -79,7 +51,7 @@ macro_rules! assert_near {
         let max_eps = $eps;
         let eps = (lhs - rhs).abs();
         if eps > max_eps {
-            let extra = format!($($arg,)*);
+            let extra = alloc::format!($($arg,)*);
             panic!("Assertion |lhs - rhs| < eps failed:\n lhs: {lhs}\n rhs: {rhs}\ndiff: {eps}, eps = {max_eps}\n{extra}");
         }
     }};
@@ -91,7 +63,7 @@ macro_rules! assert_vec_f32_near {
         let rhs = $rhs;
         let max_eps = $eps;
         let len = lhs.len().min(rhs.len());
-        let mut diff = Vec::with_capacity(len);
+        let mut diff = alloc::vec::Vec::with_capacity(len);
         for i in 0..len {
             let mut eps = (rhs[i] - lhs[i]).abs();
             if eps <= max_eps {
