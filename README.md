@@ -6,7 +6,7 @@
 
 An audio resampler that uses [Lanczos filter](https://en.wikipedia.org/wiki/Lanczos_resampling)
 as an alternative to traditional windowed sinc filters.
-The main advantage of such approach is small number of coefficients required to store the filter state,
+The main advantage of such approach is small number of coefficients required to store the filter state;
 this results in small memory footprint and high performance.
 
 
@@ -24,24 +24,23 @@ This is achived without SIMD instructions.
 
 ### Predictability
 
-When you're resampling from _N<sub>1</sub>_ Hz to _N<sub>2</sub>_ Hz,
-for each _N<sub>1</sub>_ input samples you will get _exactly_ _N<sub>2</sub>_ output samples.
+When you're resampling from _N_ Hz to _M_ Hz, for each _N_ input samples you will get _exactly_ _M_ output samples[^1].
 This results in predictable audio stream playback,
-and simplifies time synchronization between different streams (e.g. video and audio)[^1].
+and simplifies time synchronization between different streams (e.g. video and audio).
+
+[^1]: Seriously, why other libraries don't have this feature?
 
 ### JS-compatible
 
 This library can be used in web browsers and in any JS engine that supports WASM in general.
-All of the abovementioned features also hold for the WASM version of the library.
-
-[^1]: Seriously, why other libraries don't have this feature?
+All of the abovementioned features inherent to both Rust and WASM versions of the library.
 
 
 ## Usage
 
 ### Rust
 
-#### Chunked resampling
+#### Resampling audio stream in chunks
 
 ```rust
 use lanczos_resampler::ChunkedResampler;
@@ -78,7 +77,7 @@ assert!(output_slice.is_empty());
 npm install lanczos-resampler
 ```
 
-#### Chunked resampling
+#### Resampling audio stream in chunks
 
 ```javascript
 import { ChunkedResampler } from 'lanczos-resampler';

@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 ///
 /// # Panics
 ///
-/// Panics when the input length or output the sample rate is too large.
+/// Panics when the input length or the output sample rate is too large.
 ///
 /// # Limitations
 ///
@@ -76,7 +76,7 @@ pub type WholeResampler = BasicWholeResampler<DEFAULT_N, DEFAULT_A>;
 ///
 /// # Limitations
 ///
-/// `WholeResampler` shouldn't be used to process audio track in chunks.
+/// `WholeResampler` shouldn't be used to process audio track in chunks;
 /// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
 #[derive(Clone, Default)]
 pub struct BasicWholeResampler<const N: usize, const A: usize> {

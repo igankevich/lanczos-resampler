@@ -3,6 +3,7 @@ use crate::Float32ArrayOutput;
 use core::ptr;
 use core::slice;
 use js_sys::Float32Array;
+use js_sys::Number;
 use wasm_bindgen::prelude::*;
 
 const WHOLE_RESAMPLER_LEN: usize = size_of::<rust::WholeResampler>();
@@ -13,6 +14,20 @@ const _: () = assert!(size_of::<WholeResampler>() == size_of::<rust::WholeResamp
 const N: usize = crate::DEFAULT_N;
 const A: usize = crate::DEFAULT_A;
 
+/// A resampler that processes audio input as a whole.
+///
+/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
+/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
+/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
+/// output is clamped to _[-1; 1]_.
+///
+/// ## Parameters
+///
+/// This resampler uses default parameters: _N = 16, A = 3_.
+///
+/// ## Limitations
+///
+/// `WholeResampler` shouldn't be used to process audio track in chunks; use {@link ChunkedResampler} instead.
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
@@ -20,29 +35,52 @@ pub struct WholeResampler([u8; WHOLE_RESAMPLER_LEN]);
 
 #[wasm_bindgen]
 impl WholeResampler {
+    /// Create new resampler.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         let mut buf = [0_u8; WHOLE_RESAMPLER_LEN];
         let resampler = rust::WholeResampler::new();
-        // SAFETY: Self and WholeResampler have the same size and the same aligntment.
+        // SAFETY: Self and WholeResampler have the same size and the same alignment.
         buf.copy_from_slice(unsafe {
             slice::from_raw_parts(ptr::from_ref(&resampler).cast(), WHOLE_RESAMPLER_LEN)
         });
         Self(buf)
     }
 
+    /// Resample input signal from the source to the target sample rate and
+    /// returns the resulting output signal as a vector.
+    ///
+    /// #### Edge cases
+    ///
+    /// - Returns an empty array when either the input length or calculated output length is less than 2.
+    /// - Returns an empty array when either the input length or the output sample rate is too large.
+    ///
+    /// #### Limitations
+    ///
+    /// This function shouldn't be used when processing audio track in chunks;
+    /// use {@link ChunkedResampler.resampleChunk} instead.
     #[wasm_bindgen(js_name = "resampleWhole")]
     pub fn resample_whole(
         &self,
-        input: Float32Array,
+        #[wasm_bindgen(param_description = "input samples")] input: Float32Array,
+        #[wasm_bindgen(
+            param_description = "input sample rate in Hz",
+            js_name = "inputSampleRate"
+        )]
         input_sample_rate: usize,
+        #[wasm_bindgen(
+            param_description = "output sample rate in Hz",
+            js_name = "outputSampleRate"
+        )]
         output_sample_rate: usize,
     ) -> Float32Array {
-        let output_len = rust::output_len(
+        let Some(output_len) = rust::checked_output_len(
             input.length() as usize,
             input_sample_rate,
             output_sample_rate,
-        );
+        ) else {
+            return Float32Array::new_with_length(0);
+        };
         let output = Float32Array::new_with_length(output_len as u32);
         self.as_ref()
             .resample_whole_into(&input, &mut Float32ArrayOutput::new(&output));
@@ -57,22 +95,44 @@ impl WholeResampler {
 
     #[inline]
     fn as_ref(&self) -> &rust::WholeResampler {
-        // SAFETY: Self and WholeResampler have the same size and the same aligntment.
+        // SAFETY: Self and WholeResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }
 
     #[inline]
     fn as_mut(&mut self) -> &mut rust::WholeResampler {
-        // SAFETY: Self and WholeResampler have the same size and the same aligntment.
+        // SAFETY: Self and WholeResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }
 }
 
+/// Calculates resampled length of the input for given input/output sample
+/// rates.
+///
+/// #### Edge cases
+///
+/// Returns `Number.NAN` when the input length or the output sample rate is too large.
+///
+/// #### Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use {@link ChunkedResampler} instead.
 #[wasm_bindgen(js_name = "outputLength")]
 pub fn output_length(
-    input_len: usize,
+    #[wasm_bindgen(param_description = "input length", js_name = "inputLength")] input_len: usize,
+    #[wasm_bindgen(
+        param_description = "input sample rate in Hz",
+        js_name = "inputSampleRate"
+    )]
     input_sample_rate: usize,
+    #[wasm_bindgen(
+        param_description = "output sample rate in Hz",
+        js_name = "outputSampleRate"
+    )]
     output_sample_rate: usize,
-) -> usize {
-    rust::output_len(input_len, input_sample_rate, output_sample_rate)
+) -> Number {
+    match rust::checked_output_len(input_len, input_sample_rate, output_sample_rate) {
+        Some(len) => (len as u32).into(),
+        None => Number::NAN.into(),
+    }
 }

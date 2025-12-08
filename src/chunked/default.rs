@@ -25,7 +25,7 @@ pub type ChunkedResampler = BasicChunkedResampler<DEFAULT_N, DEFAULT_A>;
 /// # Limitations
 ///
 /// `ChunkedResampler` produces slightly different output compared to processing the whole input at once.
-/// If this is undesired, consider using free-standing [`resample`](crate::resample) function.
+/// If this is undesired, consider using [`WholeResampler`](crate::WholeResampler).
 #[derive(Clone)]
 pub struct BasicChunkedResampler<const N: usize, const A: usize> {
     filter: LanczosFilter<N, A>,

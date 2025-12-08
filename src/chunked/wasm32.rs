@@ -12,6 +12,21 @@ const CHUNKED_RESAMPLER_LEN: usize = size_of::<RustChunkedResampler>();
 const _: () = assert!(align_of::<ChunkedResampler>() == align_of::<RustChunkedResampler>());
 const _: () = assert!(size_of::<ChunkedResampler>() == size_of::<RustChunkedResampler>());
 
+/// A resampler that processes audio input in chunks.
+///
+/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
+/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
+/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
+/// output is clamped to _[-1; 1]_.
+///
+/// ## Parameters
+///
+/// This resampler uses default parameters: _N = 16, A = 3_.
+///
+/// ## Limitations
+///
+/// `ChunkedResampler` produces slightly different output compared to processing the whole input at once.
+/// If this is undesired, consider using {@link WholeResampler}.
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
@@ -19,42 +34,94 @@ pub struct ChunkedResampler([u8; CHUNKED_RESAMPLER_LEN]);
 
 #[wasm_bindgen]
 impl ChunkedResampler {
+    /// Create new resampler with the specified input and output sample rates.
     #[wasm_bindgen(constructor)]
-    pub fn new(input_sample_rate: usize, output_sample_rate: usize) -> Self {
+    pub fn new(
+        #[wasm_bindgen(
+            param_description = "input sample rate in Hz",
+            js_name = "inputSampleRate"
+        )]
+        input_sample_rate: usize,
+        #[wasm_bindgen(
+            param_description = "output sample rate in Hz",
+            js_name = "outputSampleRate"
+        )]
+        output_sample_rate: usize,
+    ) -> Self {
         let mut buf = [0_u8; CHUNKED_RESAMPLER_LEN];
         let resampler = RustChunkedResampler::new(input_sample_rate, output_sample_rate);
-        // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
+        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
         buf.copy_from_slice(unsafe {
             slice::from_raw_parts(ptr::from_ref(&resampler).cast(), CHUNKED_RESAMPLER_LEN)
         });
         Self(buf)
     }
 
+    /// Get input sample rate in Hz.
     #[wasm_bindgen(js_name = "inputSampleRate", getter)]
     pub fn input_sample_rate(&self) -> usize {
         self.as_ref().input_sample_rate()
     }
 
+    /// Get/set output sample rate in Hz.
+    ///
+    /// After changing the sample rate you should consider updating buffer size to
+    /// {@link ChunkedResampler.maxOutputChunkLength}.
     #[wasm_bindgen(js_name = "outputSampleRate", getter)]
     pub fn output_sample_rate(&self) -> usize {
         self.as_ref().output_sample_rate()
     }
 
     #[wasm_bindgen(js_name = "outputSampleRate", setter)]
-    pub fn set_output_sample_rate(&mut self, value: usize) {
+    pub fn set_output_sample_rate(
+        &mut self,
+        #[wasm_bindgen(param_description = "new sample rate in Hz")] value: usize,
+    ) {
         self.as_mut().set_output_sample_rate(value);
     }
 
+    /// Get maximum output chunk length given the input chunk length.
+    ///
+    /// Returns the same value as {@link outputLength} plus one.
+    /// This additional sample is used to compensate for unevenly divisible sample rates.
+    ///
+    /// You should consider updating buffer size every time you change output sample rate via
+    /// {@link ChunkedResampler.outputSampleRate}.
     #[wasm_bindgen(js_name = "maxOutputChunkLength")]
     pub fn max_output_chunk_len(&self, input_chunk_len: usize) -> usize {
         self.as_ref().max_output_chunk_len(input_chunk_len)
     }
 
+    /// Resets internal state.
+    ///
+    /// Erases any information about the previous chunk.
+    ///
+    /// Use this method when you want to reuse resampler for another audio stream.
     #[wasm_bindgen(js_name = "reset")]
     pub fn reset(&mut self) {
         self.as_mut().reset();
     }
 
+    /// Resamples input signal chunk from the source to the target sample rate and appends the
+    /// resulting signal to the output.
+    ///
+    /// Returns the number of processed input samples. The output is clamped to _[-1; 1]_.
+    ///
+    /// For each {@link ChunkedResampler.inputSampleRate} input samples this method produces exactly
+    /// {@link ChunkedResampler.outputSampleRate} output samples  even if it is called multiple times with a smaller
+    /// amount of input samples; the only exception is when the output sample rate was changed in the process.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the input length or output length is less than 2, adjusted in
+    /// accordance with sample rate ratio.
+    ///
+    /// #### Limitations
+    ///
+    /// The output depends on the chunk size, hence resampling the same audio track all at once and
+    /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
+    /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
+    /// be much larger than _2⋅A + 1_.
     #[wasm_bindgen(js_name = "resampleChunk")]
     pub fn resample_chunk(&mut self, chunk: Float32Array, output: Float32Array) -> usize {
         self.as_mut()
@@ -63,13 +130,13 @@ impl ChunkedResampler {
 
     #[inline]
     fn as_ref(&self) -> &RustChunkedResampler {
-        // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
+        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }
 
     #[inline]
     fn as_mut(&mut self) -> &mut RustChunkedResampler {
-        // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
+        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }
 }

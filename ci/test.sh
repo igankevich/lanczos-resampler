@@ -12,6 +12,7 @@ main() {
     wasm_pack_build
     wasm_pack_test
     wasm_integration_tests
+    wasm_doc
 }
 
 cargo_clippy() {
@@ -23,9 +24,9 @@ cargo_test() {
 }
 
 cargo_build() {
-    cargo build
-    cargo build --features alloc
-    cargo build --features std
+    cargo build --no-default-features
+    cargo build --no-default-features --features alloc
+    cargo build --no-default-features --features std
 }
 
 enable_cdylib() {
@@ -33,9 +34,9 @@ enable_cdylib() {
 }
 
 wasm_pack_build() {
-    wasm-pack build
-    wasm-pack build . --features alloc
-    wasm-pack build . --features std
+    wasm-pack build . --no-default-features
+    wasm-pack build . --no-default-features --features alloc
+    wasm-pack build . --no-default-features --features std
     du -chd0 pkg
 }
 
@@ -55,6 +56,13 @@ wasm_pack_test() {
 
 wasm_integration_tests() {
     node --experimental-wasm-modules tests.js
+}
+
+wasm_doc() {
+    rm -rf pkg
+    wasm-pack build --no-typescript . --release
+    tsc pkg/*.js --declaration --allowJs --emitDeclarationOnly --outDir pkg
+    typedoc
 }
 
 cleanup() {

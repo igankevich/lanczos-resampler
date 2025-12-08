@@ -29,3 +29,6 @@ jobs:
           RUST_BACKTRACE: 1
           ARBTEST_BUDGET_MS: 10000
         run: ./ci/test.sh ${{ matrix.os }}
+      # TODO
+      - name: Generate GH pages
+        run: ./ci/gh-pages.sh
