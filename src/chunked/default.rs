@@ -89,6 +89,17 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         ) + 1
     }
 
+    /// Resets internal state.
+    ///
+    /// Erases any information about the previous chunk.
+    ///
+    /// Use this method when you want to reuse resampler for another audio stream.
+    #[inline]
+    pub fn reset(&mut self) {
+        self.remainder = 0;
+        self.prev_chunk_len = 0;
+    }
+
     /// Resamples input signal chunk from the source to the target sample rate and appends the
     /// resulting signal to the output.
     ///

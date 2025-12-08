@@ -2,6 +2,8 @@ use super::default::ChunkedResampler as RustChunkedResampler;
 use crate::Float32ArrayOutput;
 use core::mem::align_of;
 use core::mem::size_of;
+use core::ptr;
+use core::slice;
 use js_sys::Float32Array;
 use wasm_bindgen::prelude::*;
 
@@ -23,10 +25,7 @@ impl ChunkedResampler {
         let resampler = RustChunkedResampler::new(input_sample_rate, output_sample_rate);
         // SAFETY: Self and ChunkedResampler have the same size and the same aligntment.
         buf.copy_from_slice(unsafe {
-            core::slice::from_raw_parts(
-                core::ptr::from_ref(&resampler).cast(),
-                CHUNKED_RESAMPLER_LEN,
-            )
+            slice::from_raw_parts(ptr::from_ref(&resampler).cast(), CHUNKED_RESAMPLER_LEN)
         });
         Self(buf)
     }
@@ -49,6 +48,11 @@ impl ChunkedResampler {
     #[wasm_bindgen(js_name = "maxOutputChunkLength")]
     pub fn max_output_chunk_len(&self, input_chunk_len: usize) -> usize {
         self.as_ref().max_output_chunk_len(input_chunk_len)
+    }
+
+    #[wasm_bindgen(js_name = "reset")]
+    pub fn reset(&mut self) {
+        self.as_mut().reset();
     }
 
     #[wasm_bindgen(js_name = "resampleChunk")]

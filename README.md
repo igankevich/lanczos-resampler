@@ -84,22 +84,24 @@ npm install lanczos-resampler
 import { ChunkedResampler } from 'lanczos-resampler';
 
 const resampler = new ChunkedResampler(44100, 48000);
-const chunk = new Float32Array(1024);
-chunk.fill(0.1);
-const output = new Float32Array(resampler.maxOutputChunkLength(chunk.length));
-const numProcessed = resampler.resampleChunk(chunk, output);
-assert.equal(chunk.length, numProcessed);
+const input = new Float32Array(1024);
+input.fill(0.1);
+const output = new Float32Array(resampler.maxOutputChunkLength(input.length));
+const numProcessed = resampler.resampleChunk(input, output);
+assert.equal(input.length, numProcessed);
 ```
 
 #### Resampling the whole audio track
 
 ```javascript
-import * as lanczos from 'lanczos-resampler';
+import { WholeResampler, outputLength } as lanczos from 'lanczos-resampler';
 
 const input = new Float32Array(1024);
 input.fill(0.1);
-const outputLength = lanczos.outputLength(1024, 44100, 48000);
-const output = new Float32Array(outputLength);
-lanczos.resampleInto(input, output);
+const outputLen = outputLength(1024, 44100, 48000);
+const output = new Float32Array(outputLen);
+const resampler = new WholeResampler();
+const numProcessed = resampler.resampleWholeInto(input, output);
+assert.equal(input.length, numProcessed);
 console.log(output)
 ```

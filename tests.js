@@ -1,23 +1,31 @@
 import assert from "node:assert";
-import { ChunkedResampler } from "./pkg/lanczos_resampler.js";
+import {
+    ChunkedResampler,
+    WholeResampler,
+    outputLength,
+} from "./pkg/lanczos_resampler.js";
 
-const resampler = new ChunkedResampler(44100, 48000);
-const chunk = new Float32Array(1024);
-chunk.fill(0.1);
-const output = new Float32Array(resampler.maxOutputChunkLength(chunk.length));
-const numProcessed = resampler.resampleChunk(chunk, output);
-assert.equal(chunk.length, numProcessed);
+let origOutput;
 
-/*
-const input = new Float32Array(1024);
-input.fill(0.1);
-const output = lanczos.resample(input, 44100, 48000);
+{
+    const chunk = new Float32Array(1024);
+    chunk.fill(0.1);
+    const resampler = new ChunkedResampler(44100, 48000);
+    const output = new Float32Array(
+        resampler.maxOutputChunkLength(chunk.length),
+    );
+    const numProcessed = resampler.resampleChunk(chunk, output);
+    assert.equal(chunk.length, numProcessed);
+    origOutput = output;
+}
 
-const outputLength = lanczos.outputLength(1024, 44100, 48000);
-assert.equal(output.length, outputLength);
-
-const output2 = new Float32Array(outputLength);
-const numRead = lanczos.resampleInto(input, output2);
-assert.equal(numRead, input.length);
-assert.ok(output.every((y, i) => y === output2[i]));
-*/
+{
+    const whole = new Float32Array(1024);
+    whole.fill(0.1);
+    const outputLen = outputLength(1024, 44100, 48000);
+    const output = new Float32Array(outputLen);
+    const resampler = new WholeResampler();
+    const numProcessed = resampler.resampleWholeInto(whole, output);
+    assert.equal(numProcessed, whole.length);
+    assert.ok(output.every((y, i) => y === origOutput[i]));
+}

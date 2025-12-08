@@ -206,20 +206,6 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     }
 }
 
-/// Resamples input signal from the source to the target sample rate and
-/// returns the resulting output signal as a vector.
-///
-/// This is a convenience wrapper for [`WholeResampler::resample_whole`] that creates new resampler on
-/// each call. If you need to resample multiple audio tracks, consider using [`WholeResampler`].
-pub fn resample_whole(
-    input: &(impl Input + ?Sized),
-    input_sample_rate: usize,
-    output_sample_rate: usize,
-) -> Vec<f32> {
-    let resampler = WholeResampler::new();
-    resampler.resample_whole(input, input_sample_rate, output_sample_rate)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
