@@ -112,19 +112,18 @@ pub trait M256Ext {
 }
 
 impl M256Ext for __m256 {
+    /// Pairwise sum.
     fn sum(self) -> f32 {
         unsafe {
             // Sum left and right halves.
-            let y128 = _mm_add_ps(
-                _mm256_extractf128_ps(self, 0),
-                _mm256_extractf128_ps(self, 1),
-            );
-            // Pairwise sum.
-            let sum1 = f32::from_bits(_mm_extract_ps(y128, 0) as u32)
-                + f32::from_bits(_mm_extract_ps(y128, 2) as u32);
-            let sum2 = f32::from_bits(_mm_extract_ps(y128, 1) as u32)
-                + f32::from_bits(_mm_extract_ps(y128, 3) as u32);
-            sum1 + sum2
+            let mut y128 = _mm_add_ps(_mm256_castps256_ps128(self), _mm256_extractf128_ps(self, 1));
+            // Sum adjacent pairs.
+            y128 = _mm_hadd_ps(y128, y128);
+            // One more time.
+            y128 = _mm_hadd_ps(y128, y128);
+            let mut sum = 0.0;
+            _mm_store_ss(&mut sum, y128);
+            sum
         }
     }
 

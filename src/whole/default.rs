@@ -168,6 +168,45 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         input_len
     }
 
+    #[doc(hidden)]
+    pub fn resample_interleaved_into(
+        &self,
+        input: &[f32],
+        channels: usize,
+        output: &mut &mut [f32],
+    ) -> usize {
+        if channels == 1 {
+            return self.resample_whole_into(input, output);
+        }
+        assert_ne!(0, channels);
+        let input_len = input.len();
+        assert_eq!(0, input_len % channels);
+        let num_input_frames = input_len / channels;
+        if num_input_frames <= 1 {
+            return 0;
+        }
+        let output_len = output.len();
+        assert_eq!(0, output_len % channels);
+        let num_output_frames = output_len / channels;
+        if num_output_frames <= 1 {
+            return 0;
+        }
+        let x0 = 0.0;
+        let x1 = (num_input_frames - 1) as f32;
+        let i_max = (num_output_frames - 1) as f32;
+        for (i, output_frame) in output.chunks_exact_mut(channels).enumerate() {
+            let x = lerp(x0, x1, i as f32 / i_max);
+            self.filter
+                .interpolate_interleaved(x, input, channels, output_frame);
+            for sample in output_frame.iter_mut() {
+                *sample = sample.clamp(-1.0, 1.0);
+            }
+        }
+        let slice = core::mem::take(output);
+        *output = &mut slice[num_output_frames * channels..];
+        num_input_frames
+    }
+
     pub(crate) fn do_resample_into_scalar(
         &self,
         input: &(impl Input + ?Sized),
@@ -214,6 +253,7 @@ mod tests {
 
     parameterize! {
         resample_into_works
+        resample_interleaved_into_works
     }
 
     parameterize_impl! {
@@ -257,11 +297,52 @@ mod tests {
             let mut actual =
                 vec![f32::NAN; output_len(input_len, input_sample_rate, output_sample_rate)];
             let mut output = &mut actual[..];
-            let num_read = resampler.resample_whole_into(&input[..], &mut output);
+            let num_processed = resampler.resample_whole_into(&input[..], &mut output);
             assert_eq!(0, output.len(), "Input length = {input_len}");
             assert_eq!(expected, actual);
             if !expected.is_empty() {
-                assert_eq!(input_len, num_read);
+                assert_eq!(input_len, num_processed);
+            }
+            Ok(())
+        });
+    }
+
+    fn resample_interleaved_into_works<const N: usize, const A: usize>() {
+        let resampler = BasicWholeResampler::<N, A>::new();
+        arbtest(|u| {
+            let num_channels = u.int_in_range(1..=10)?;
+            let input_len = u.int_in_range(0..=1000)?;
+            let input = arbitrary_channels(u, input_len, num_channels)?;
+            let interleaved_input = interleave(&input);
+            let input_sample_rate = u.int_in_range(1..=100)?;
+            let output_sample_rate = u.int_in_range(1..=100)?;
+            let expected = interleave(
+                &input
+                    .iter()
+                    .map(|channel| {
+                        resampler.resample_whole(
+                            &channel[..],
+                            input_sample_rate,
+                            output_sample_rate,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let mut actual = vec![
+                f32::NAN;
+                output_len(input_len, input_sample_rate, output_sample_rate)
+                    * num_channels
+            ];
+            let mut output = &mut actual[..];
+            let num_processed = resampler.resample_interleaved_into(
+                &interleaved_input[..],
+                num_channels,
+                &mut output,
+            );
+            assert_eq!(0, output.len(), "Input length = {input_len}");
+            assert_eq!(expected, actual);
+            if !expected.is_empty() {
+                assert_eq!(input_len, num_processed);
             }
             Ok(())
         });

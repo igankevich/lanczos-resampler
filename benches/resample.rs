@@ -27,6 +27,29 @@ fn criterion_benchmark(c: &mut Criterion) {
             BatchSize::SmallInput,
         )
     });
+    c.bench_function("resample whole interleaved", |b| {
+        b.iter_batched(
+            || {
+                let num_channels = 2;
+                let n = 44100 * 6 * num_channels;
+                let mut input: Vec<f32> = Vec::with_capacity(n);
+                for _ in 0..n {
+                    input.push(rng().random_range(-1.0..=1.0));
+                }
+                let output = vec![f32::NAN; n];
+                let resampler = WholeResampler::new();
+                (resampler, input, num_channels, output)
+            },
+            |(resampler, input, num_channels, mut output)| {
+                resampler.resample_interleaved_into(
+                    black_box(&input[..]),
+                    num_channels,
+                    black_box(&mut &mut output[..]),
+                );
+            },
+            BatchSize::SmallInput,
+        )
+    });
     let n = 1024;
     let mut resampler = ChunkedResampler::new(44100, 48000);
     let input = vec![0.1; n];

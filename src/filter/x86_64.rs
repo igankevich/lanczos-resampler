@@ -4,10 +4,43 @@ use super::*;
 use crate::F256;
 use crate::I256;
 use crate::M256Ext;
+use crate::floor;
 use core::arch::x86_64::*;
 use seq_macro::seq;
 
 impl<const N: usize, const A: usize> LanczosFilter<N, A> {
+    pub fn interpolate_avx_v2(&self, x: f32, samples: &(impl Input + ?Sized)) -> f32 {
+        let i = floor(x) as usize;
+        let mut sum = 0.0;
+        self.do_interpolate_avx_v2(i, x, samples, &mut sum);
+        sum
+    }
+
+    #[inline]
+    fn do_interpolate_avx_v2(
+        &self,
+        i: usize,
+        x: f32,
+        samples: &(impl Input + ?Sized),
+        sum: &mut f32,
+    ) {
+        let i_from = (i + 1).saturating_sub(A);
+        let i_to = (i + A).min(samples.len() - 1);
+        let mut s = F256::zero();
+        let mut index = 0;
+        for j in i_from..=i_to {
+            s.0[index] = samples
+                .get(j)
+                .mul_add(self.kernel.interpolate(x - j as f32), s.0[index]);
+            index += 1;
+            if index == 8 {
+                index = 0;
+            }
+        }
+        let s: __m256 = s.into();
+        *sum = s.sum();
+    }
+
     pub fn interpolate_avx(&self, x: __m256, samples: &(impl Input + ?Sized)) -> __m256 {
         unsafe {
             // let i = x.floor() as usize;

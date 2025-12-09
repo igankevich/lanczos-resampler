@@ -53,6 +53,26 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
             *sum += samples.get(j) * self.kernel.interpolate(x - j as f32);
         }
     }
+
+    pub fn interpolate_interleaved(
+        &self,
+        x: f32,
+        input: &[f32],
+        num_channels: usize,
+        output_frame: &mut [f32],
+    ) {
+        let frames = input.chunks_exact(num_channels);
+        let i = floor(x) as usize;
+        let i_from = (i + 1).saturating_sub(A);
+        let i_to = (i + A).min(frames.len() - 1);
+        output_frame.fill(0.0);
+        for (j, frame) in frames.enumerate().take(i_to + 1).skip(i_from) {
+            let kernel = self.kernel.interpolate(x - j as f32);
+            for (sample, out) in frame.iter().zip(output_frame.iter_mut()) {
+                *out += sample * kernel;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

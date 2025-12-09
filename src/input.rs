@@ -2,7 +2,7 @@ use core::ops::Range;
 
 /// Resampler's input, a collection of samples.
 ///
-/// All samples are [`f32`], little-endian.
+/// All samples are [`f32`], native-endian.
 pub trait Input {
     /// Returns the sample at index `i`.
     ///
@@ -19,7 +19,7 @@ pub trait Input {
 
     /// Returns a slice of the input containing the samples in the specified range.
     ///
-    /// Panics if the range crosses the input bounds.
+    /// Panics if the range is out of bounds.
     fn slice(&self, range: Range<usize>) -> impl Input;
 }
 

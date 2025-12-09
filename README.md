@@ -20,7 +20,6 @@ and resampler's internal state occupies less than a hundred bytes.
 ### High performance
 
 Thanks to small kernel size the processing time of a typical audio chunk on a typical laptop is below 100 μs.
-This is achived without SIMD instructions.
 
 ### Predictability
 

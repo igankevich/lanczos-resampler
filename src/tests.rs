@@ -27,6 +27,33 @@ pub fn arbitrary_samples(u: &mut Unstructured<'_>, len: usize) -> arbitrary::Res
     Ok(samples)
 }
 
+pub fn arbitrary_channels(
+    u: &mut Unstructured<'_>,
+    len: usize,
+    num_channels: usize,
+) -> arbitrary::Result<Vec<Vec<f32>>> {
+    let mut channels = Vec::with_capacity(num_channels);
+    for _ in 0..num_channels {
+        channels.push(arbitrary_samples(u, len)?);
+    }
+    Ok(channels)
+}
+
+pub fn interleave(channels: &[Vec<f32>]) -> Vec<f32> {
+    let num_channels = channels.len();
+    if num_channels == 0 {
+        return Vec::new();
+    }
+    let samples_per_channel = channels[0].len();
+    let mut interleaved = Vec::new();
+    for i in 0..samples_per_channel {
+        for channel in channels.iter() {
+            interleaved.push(channel[i]);
+        }
+    }
+    interleaved
+}
+
 pub fn sine_wave(num_samples: usize) -> Vec<f32> {
     assert!(num_samples > 1);
     (0..num_samples)
