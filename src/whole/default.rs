@@ -104,10 +104,10 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// # Limitations
     ///
     /// This function shouldn't be used when processing audio track in chunks;
-    /// use [`ChunkedResampler::resample_chunk`](crate::ChunkedResampler::resample_chunk) instead.
+    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
     #[cfg(any(feature = "alloc", test))]
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-    pub fn resample_whole(
+    pub fn resample(
         &self,
         input: &[f32],
         input_sample_rate: usize,
@@ -147,15 +147,15 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// # Limitations
     ///
     /// This function shouldn't be used when processing audio track in chunks;
-    /// use [`ChunkedResampler::resample_chunk`](crate::ChunkedResampler::resample_chunk) instead.
-    pub fn resample_whole_into(&self, input: &[f32], output: &mut impl Output) -> usize {
+    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
+    pub fn resample_into(&self, input: &[f32], output: &mut impl Output) -> usize {
         let input_len = input.len();
         if input_len <= 1 {
             return 0;
         }
         let output_len = output
             .remaining()
-            .expect("`resample_whole_into` doesn't support unbounded outputs");
+            .expect("`resample_into` doesn't support unbounded outputs");
         if output_len <= 1 {
             return 0;
         }
@@ -171,7 +171,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         output: &mut &mut [f32],
     ) -> usize {
         if channels == 1 {
-            return self.resample_whole_into(input, output);
+            return self.resample_into(input, output);
         }
         assert_ne!(0, channels);
         let input_len = input.len();
@@ -254,22 +254,22 @@ mod tests {
         let resampler = BasicWholeResampler::<N, A>::new();
         assert_eq!(
             vec![0.0; 100],
-            resampler.resample_whole(vec![0.0; 100].as_slice(), 100, 100)
+            resampler.resample(vec![0.0; 100].as_slice(), 100, 100)
         );
         for x in [0.1, -1.0, 1.0, 0.33] {
             assert_vec_f32_near!(
                 vec![x; 200],
-                resampler.resample_whole(vec![x; 100].as_slice(), 100, 200),
+                resampler.resample(vec![x; 100].as_slice(), 100, 200),
                 1e-1
             );
             assert_vec_f32_near!(
                 vec![x; 100],
-                resampler.resample_whole(vec![x; 200].as_slice(), 200, 100),
+                resampler.resample(vec![x; 200].as_slice(), 200, 100),
                 1e-2
             );
             assert_vec_f32_near!(
                 vec![x; 100],
-                resampler.resample_whole(vec![x; 100].as_slice(), 100, 100),
+                resampler.resample(vec![x; 100].as_slice(), 100, 100),
                 1e-2
             );
         }
@@ -282,12 +282,11 @@ mod tests {
             let input = arbitrary_samples(u, input_len)?;
             let input_sample_rate = u.int_in_range(1..=100)?;
             let output_sample_rate = u.int_in_range(1..=100)?;
-            let expected =
-                resampler.resample_whole(&input[..], input_sample_rate, output_sample_rate);
+            let expected = resampler.resample(&input[..], input_sample_rate, output_sample_rate);
             let mut actual =
                 vec![f32::NAN; output_len(input_len, input_sample_rate, output_sample_rate)];
             let mut output = &mut actual[..];
-            let num_processed = resampler.resample_whole_into(&input[..], &mut output);
+            let num_processed = resampler.resample_into(&input[..], &mut output);
             assert_eq!(0, output.len(), "Input length = {input_len}");
             assert_eq!(expected, actual);
             if !expected.is_empty() {
@@ -310,11 +309,7 @@ mod tests {
                 &input
                     .iter()
                     .map(|channel| {
-                        resampler.resample_whole(
-                            &channel[..],
-                            input_sample_rate,
-                            output_sample_rate,
-                        )
+                        resampler.resample(&channel[..], input_sample_rate, output_sample_rate)
                     })
                     .collect::<Vec<_>>(),
             );

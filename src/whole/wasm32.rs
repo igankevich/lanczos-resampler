@@ -55,9 +55,9 @@ impl WholeResampler {
     /// #### Limitations
     ///
     /// This function shouldn't be used when processing audio track in chunks;
-    /// use {@link ChunkedResampler.resampleChunk} instead.
-    #[wasm_bindgen(js_name = "resampleWhole")]
-    pub fn resample_whole(
+    /// use {@link ChunkedResampler.resample} instead.
+    #[wasm_bindgen(js_name = "resample")]
+    pub fn resample(
         &self,
         #[wasm_bindgen(param_description = "input samples")] input: &[f32],
         #[wasm_bindgen(
@@ -78,16 +78,16 @@ impl WholeResampler {
         };
         let output = Float32Array::new_with_length(output_len as u32);
         self.as_ref()
-            .resample_whole_into(&input, &mut Float32ArrayOutput::new(&output));
+            .resample_into(&input, &mut Float32ArrayOutput::new(&output));
         output
     }
 
-    #[wasm_bindgen(js_name = "resampleWholeInto")]
+    #[wasm_bindgen(js_name = "resampleInto")]
     pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
         // Having &Float32Array as the output is faster than &mut [f32]...
         let num_processed = self
             .as_ref()
-            .resample_whole_into(&input[..], &mut Float32ArrayOutput::new(output));
+            .resample_into(&input[..], &mut Float32ArrayOutput::new(output));
         num_processed
     }
 

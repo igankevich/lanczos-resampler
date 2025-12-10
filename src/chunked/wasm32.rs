@@ -122,10 +122,10 @@ impl ChunkedResampler {
     /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
-    #[wasm_bindgen(js_name = "resampleChunk")]
-    pub fn resample_chunk(&mut self, chunk: &[f32], output: Float32Array) -> usize {
+    #[wasm_bindgen(js_name = "resample")]
+    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> usize {
         self.as_mut()
-            .resample_chunk(&chunk[..], &mut Float32ArrayOutput::new(&output))
+            .resample(&chunk[..], &mut Float32ArrayOutput::new(&output))
     }
 
     #[inline]

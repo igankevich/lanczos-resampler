@@ -48,7 +48,7 @@ let n = 1024;
 let chunk = vec![0.1; n];
 let mut resampler = ChunkedResampler::new(44100, 48000);
 let mut output: Vec<f32> = Vec::with_capacity(resampler.max_output_chunk_len(n));
-let num_processed = resampler.resample_chunk(&chunk[..], &mut output);
+let num_processed = resampler.resample(&chunk[..], &mut output);
 assert_eq!(n, num_processed);
 ```
 
@@ -63,7 +63,7 @@ let output_len = lanczos_resampler::output_len(n, 44100, 48000);
 let mut output = vec![0.1; output_len];
 let resampler = WholeResampler::new();
 let mut output_slice = &mut output[..];
-let num_processed = resampler.resample_whole_into(&track[..], &mut output_slice);
+let num_processed = resampler.resample_into(&track[..], &mut output_slice);
 assert_eq!(n, num_processed);
 assert!(output_slice.is_empty());
 ```
@@ -85,7 +85,7 @@ const resampler = new ChunkedResampler(44100, 48000);
 const input = new Float32Array(1024);
 input.fill(0.1);
 const output = new Float32Array(resampler.maxOutputChunkLength(input.length));
-const numProcessed = resampler.resampleChunk(input, output);
+const numProcessed = resampler.resample(input, output);
 assert.equal(input.length, numProcessed);
 ```
 
@@ -99,7 +99,7 @@ input.fill(0.1);
 const outputLen = outputLength(1024, 44100, 48000);
 const output = new Float32Array(outputLen);
 const resampler = new WholeResampler();
-const numProcessed = resampler.resampleWholeInto(input, output);
+const numProcessed = resampler.resampleInto(input, output);
 assert.equal(input.length, numProcessed);
 console.log(output)
 ```

@@ -21,8 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 (resampler, input, output)
             },
             |(resampler, input, mut output)| {
-                resampler
-                    .resample_whole_into(black_box(&input[..]), black_box(&mut &mut output[..]));
+                resampler.resample_into(black_box(&input[..]), black_box(&mut &mut output[..]));
             },
             BatchSize::SmallInput,
         )
@@ -61,7 +60,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut output = vec![0.0; output_len];
     c.bench_function("resample chunk", |b| {
         b.iter(|| {
-            resampler.resample_chunk(black_box(&input[..]), black_box(&mut &mut output[..]));
+            resampler.resample(black_box(&input[..]), black_box(&mut &mut output[..]));
         })
     });
 }

@@ -119,7 +119,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
-    pub fn resample_chunk(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
+    pub fn resample(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
         // Determine how many input samples we can process and how many output samples we can
         // produce.
         let (chunk_len, output_len, remainder) =
@@ -234,13 +234,13 @@ mod tests {
         const O: usize = 20;
         let input = sine_wave(M);
         let whole_resampler = BasicWholeResampler::<N, A>::new();
-        let expected_output = whole_resampler.resample_whole(&input[..], M, O);
+        let expected_output = whole_resampler.resample(&input[..], M, O);
         let mut resampler = BasicChunkedResampler::<N, A>::new(M, O);
         let mut output = [f32::NAN; O];
         let mut output = &mut output[..];
-        let num_read = resampler.resample_chunk(&input[..M / 2], &mut output);
+        let num_read = resampler.resample(&input[..M / 2], &mut output);
         assert_eq!(M / 2, num_read);
-        let num_read = resampler.resample_chunk(&input[M / 2..], &mut output);
+        let num_read = resampler.resample(&input[M / 2..], &mut output);
         assert_eq!(M / 2, num_read);
         assert_vec_f32_near_relative!(expected_output, output, 0.20);
     }
@@ -254,7 +254,7 @@ mod tests {
             let input = sine_wave(input_len);
             let output_sample_rate = 2 * input_sample_rate;
             let expected_output =
-                whole_resampler.resample_whole(&input[..], input_sample_rate, output_sample_rate);
+                whole_resampler.resample(&input[..], input_sample_rate, output_sample_rate);
             let min_chunk_len = input_sample_rate;
             let max_chunk_len = input_sample_rate;
             let mut num_chunks = input_len / max_chunk_len;
@@ -293,8 +293,7 @@ mod tests {
             let mut input_slice = &input[..];
             let mut output_slice = &mut actual_output[..];
             for chunk_len in chunks.iter().copied() {
-                let num_read =
-                    resampler.resample_chunk(&input_slice[..chunk_len], &mut output_slice);
+                let num_read = resampler.resample(&input_slice[..chunk_len], &mut output_slice);
                 input_slice = &input_slice[num_read..];
             }
             assert_eq!(&[] as &[f32], input_slice);
