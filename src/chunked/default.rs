@@ -31,7 +31,7 @@ pub struct BasicChunkedResampler<const N: usize, const A: usize> {
     input_sample_rate: usize,
     output_sample_rate: usize,
     remainder: usize,
-    // TODO we only need A - 1 points...
+    // We only need A - 1 points...
     prev_chunk: [f32; A],
     /// The length is counted from the back of the array.
     prev_chunk_len: usize,

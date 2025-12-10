@@ -72,6 +72,8 @@ impl ChunkedResampler {
         self.as_ref().output_sample_rate()
     }
 
+    // The documentation is overwritten by the getter.
+    #[allow(missing_docs)]
     #[wasm_bindgen(js_name = "outputSampleRate", setter)]
     pub fn set_output_sample_rate(
         &mut self,

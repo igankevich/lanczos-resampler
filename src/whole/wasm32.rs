@@ -82,23 +82,66 @@ impl WholeResampler {
         output
     }
 
+    /// This is a variant of {@link WholeResampler.resample} that doesn't use memory allocation.
+    ///
+    /// Returns the number of samples read from the input. Currently this is either 0 (see "Panics") or
+    /// the input length.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the input length or remaining output length is less than 2.
+    ///
+    /// #### Panics
+    ///
+    /// Panics when the output isn't large enough to hold all the resampled points.
+    /// Use {@link outputLength} to ensure that the buffer size is sufficient.
+    ///
+    /// #### Limitations
+    ///
+    /// This function shouldn't be used when processing audio track in chunks;
+    /// use {@link ChunkedResampler.resample} instead.
     #[wasm_bindgen(js_name = "resampleInto")]
     pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
         // Having &Float32Array as the output is faster than &mut [f32]...
-        let num_processed = self
-            .as_ref()
-            .resample_into(&input[..], &mut Float32ArrayOutput::new(output));
-        num_processed
+        self.as_ref()
+            .resample_into(&input[..], &mut Float32ArrayOutput::new(output))
+    }
+
+    /// This is a variant of {@link resampleInto} that processes several audio channels (one audio frame) at a time.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the number of input frames or the number of remaining output frames is less than 2.
+    ///
+    /// #### Panics
+    ///
+    /// - Panics when the output isn't large enough to hold all the resampled points.
+    ///   Use {@link outputLength} to ensure that the buffer size is sufficient.
+    /// - Panics when the number of channels is zero.
+    /// - Panics when either the input or the output length isn't evenly divisible by the number of
+    ///   channels.
+    ///
+    /// #### Limitations
+    ///
+    /// This function shouldn't be used when processing audio track in chunks;
+    /// use {@link ChunkedResampler.resample} instead.
+    #[wasm_bindgen(js_name = "resampleInterleavedInto")]
+    pub fn resample_interleaved_into(
+        &self,
+        #[wasm_bindgen(param_description = "input frames")] input: &[f32],
+        #[wasm_bindgen(js_name = "numChannels", param_description = "number of channels")]
+        num_channels: usize,
+        output: &Float32Array,
+    ) -> usize {
+        self.as_ref().resample_interleaved_into(
+            &input[..],
+            num_channels,
+            &mut Float32ArrayOutput::new(output),
+        )
     }
 
     #[inline]
     fn as_ref(&self) -> &rust::WholeResampler {
-        // SAFETY: Self and WholeResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
-    }
-
-    #[inline]
-    fn as_mut(&mut self) -> &mut rust::WholeResampler {
         // SAFETY: Self and WholeResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }

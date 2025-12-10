@@ -163,42 +163,63 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         input_len
     }
 
-    #[doc(hidden)]
+    /// This is a variant of [`resample_into`](Self::resample_into)
+    /// that processes several audio channels (one audio frame) at a time.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the number of input frames or the number of remaining output frames is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// - Panics when the output isn't large enough to hold all the resampled points.
+    ///   Use [`output_len`] to ensure that the buffer size is sufficient.
+    /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    /// - Panics when the number of channels is zero.
+    /// - Panics when either the input or the remaining output length isn't evenly divisible by the number of
+    ///   channels.
+    ///
+    /// # Limitations
+    ///
+    /// This function shouldn't be used when processing audio track in chunks;
+    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
     pub fn resample_interleaved_into(
         &self,
         input: &[f32],
-        channels: usize,
-        output: &mut &mut [f32],
+        num_channels: usize,
+        output: &mut impl Output,
     ) -> usize {
-        if channels == 1 {
+        if num_channels == 1 {
             return self.resample_into(input, output);
         }
-        assert_ne!(0, channels);
+        assert_ne!(0, num_channels);
         let input_len = input.len();
-        assert_eq!(0, input_len % channels);
-        let num_input_frames = input_len / channels;
+        assert_eq!(0, input_len % num_channels);
+        let num_input_frames = input_len / num_channels;
         if num_input_frames <= 1 {
             return 0;
         }
-        let output_len = output.len();
-        assert_eq!(0, output_len % channels);
-        let num_output_frames = output_len / channels;
+        let output_len = output
+            .remaining()
+            .expect("`resample_interleaved_into` doesn't support unbounded outputs");
+        assert_eq!(0, output_len % num_channels);
+        let num_output_frames = output_len / num_channels;
         if num_output_frames <= 1 {
             return 0;
         }
         let x0 = 0.0;
         let x1 = (num_input_frames - 1) as f32;
         let i_max = (num_output_frames - 1) as f32;
-        for (i, output_frame) in output.chunks_exact_mut(channels).enumerate() {
-            let x = lerp(x0, x1, i as f32 / i_max);
-            self.filter
-                .interpolate_interleaved(x, input, channels, output_frame);
-            for sample in output_frame.iter_mut() {
-                *sample = sample.clamp(-1.0, 1.0);
-            }
+        for i in 0..num_output_frames {
+            output.write_frame(num_channels, |output_frame| {
+                let x = lerp(x0, x1, i as f32 / i_max);
+                self.filter
+                    .interpolate_interleaved(x, input, num_channels, output_frame);
+                for sample in output_frame.iter_mut() {
+                    *sample = sample.clamp(-1.0, 1.0);
+                }
+            });
         }
-        let slice = core::mem::take(output);
-        *output = &mut slice[num_output_frames * channels..];
         num_input_frames
     }
 

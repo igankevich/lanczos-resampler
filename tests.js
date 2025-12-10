@@ -30,6 +30,8 @@ let origOutput;
     assert.ok(output.every((y, i) => y === origOutput[i]));
 }
 
+// TODO test interleaved
+
 function benchmark(name, callback, iterations) {
     // Warm-up run.
     for (let i = 0; i < iterations; ++i) {
