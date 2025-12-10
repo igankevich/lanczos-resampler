@@ -1,6 +1,5 @@
 use crate::DEFAULT_A;
 use crate::DEFAULT_N;
-use crate::Input;
 use crate::LanczosFilter;
 use crate::Output;
 use crate::lerp;
@@ -120,11 +119,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
-    pub fn resample_chunk(
-        &mut self,
-        chunk: &(impl Input + ?Sized),
-        output: &mut impl Output,
-    ) -> usize {
+    pub fn resample_chunk(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
         // Determine how many input samples we can process and how many output samples we can
         // produce.
         let (chunk_len, output_len, remainder) =
@@ -133,7 +128,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             return 0;
         }
         self.remainder = remainder;
-        let chunk = chunk.slice(0..chunk_len);
+        let chunk = &chunk[0..chunk_len];
         let x0 = 0.0;
         let x1 = (chunk_len - 1) as f32;
         let i_max = (output_len - 1) as f32;
@@ -142,15 +137,13 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             let prev = &self.prev_chunk[A - self.prev_chunk_len..];
             let y = self
                 .filter
-                .interpolate_chunk(x, &chunk, prev)
+                .interpolate_chunk(x, chunk, prev)
                 .clamp(-1.0, 1.0);
             output.write(y);
         }
-        let chunk_len = chunk.len();
         let n = chunk_len.min(A - 1);
-        for i in chunk_len - n..chunk_len {
-            let sample = chunk.get(i);
-            self.push_prev(sample);
+        for sample in chunk.iter().skip(chunk_len - n) {
+            self.push_prev(*sample);
         }
         chunk_len
     }

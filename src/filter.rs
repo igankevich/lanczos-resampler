@@ -1,4 +1,3 @@
-use crate::Input;
 use crate::LanczosKernel;
 use crate::floor;
 
@@ -16,7 +15,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         Self { kernel }
     }
 
-    pub fn interpolate(&self, x: f32, samples: &(impl Input + ?Sized)) -> f32 {
+    pub fn interpolate(&self, x: f32, samples: &[f32]) -> f32 {
         debug_assert_ne!(0, samples.len());
         let i = floor(x) as usize;
         debug_assert!(i < samples.len());
@@ -25,12 +24,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         sum
     }
 
-    pub fn interpolate_chunk(
-        &self,
-        x: f32,
-        chunk: &(impl Input + ?Sized),
-        prev_chunk: &[f32],
-    ) -> f32 {
+    pub fn interpolate_chunk(&self, x: f32, chunk: &[f32], prev_chunk: &[f32]) -> f32 {
         let i = floor(x) as usize;
         let mut sum = 0.0;
         if i < A {
@@ -46,11 +40,11 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
     }
 
     #[inline]
-    fn do_interpolate(&self, i: usize, x: f32, samples: &(impl Input + ?Sized), sum: &mut f32) {
+    fn do_interpolate(&self, i: usize, x: f32, samples: &[f32], sum: &mut f32) {
         let i_from = (i + 1).saturating_sub(A);
-        let i_to = (i + A).min(samples.len() - 1);
-        for j in i_from..=i_to {
-            *sum += samples.get(j) * self.kernel.interpolate(x - j as f32);
+        let i_to = (i + 1 + A).min(samples.len());
+        for (j, sample) in samples.iter().enumerate().take(i_to).skip(i_from) {
+            *sum += sample * self.kernel.interpolate(x - j as f32);
         }
     }
 
@@ -64,9 +58,9 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         let frames = input.chunks_exact(num_channels);
         let i = floor(x) as usize;
         let i_from = (i + 1).saturating_sub(A);
-        let i_to = (i + A).min(frames.len() - 1);
+        let i_to = (i + 1 + A).min(frames.len());
         output_frame.fill(0.0);
-        for (j, frame) in frames.enumerate().take(i_to + 1).skip(i_from) {
+        for (j, frame) in frames.enumerate().take(i_to).skip(i_from) {
             let kernel = self.kernel.interpolate(x - j as f32);
             for (sample, out) in frame.iter().zip(output_frame.iter_mut()) {
                 *out += sample * kernel;

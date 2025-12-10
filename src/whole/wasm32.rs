@@ -11,9 +11,6 @@ const WHOLE_RESAMPLER_LEN: usize = size_of::<rust::WholeResampler>();
 const _: () = assert!(align_of::<WholeResampler>() == align_of::<rust::WholeResampler>());
 const _: () = assert!(size_of::<WholeResampler>() == size_of::<rust::WholeResampler>());
 
-const N: usize = crate::DEFAULT_N;
-const A: usize = crate::DEFAULT_A;
-
 /// A resampler that processes audio input as a whole.
 ///
 /// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
@@ -62,7 +59,7 @@ impl WholeResampler {
     #[wasm_bindgen(js_name = "resampleWhole")]
     pub fn resample_whole(
         &self,
-        #[wasm_bindgen(param_description = "input samples")] input: Float32Array,
+        #[wasm_bindgen(param_description = "input samples")] input: &[f32],
         #[wasm_bindgen(
             param_description = "input sample rate in Hz",
             js_name = "inputSampleRate"
@@ -74,11 +71,9 @@ impl WholeResampler {
         )]
         output_sample_rate: usize,
     ) -> Float32Array {
-        let Some(output_len) = rust::checked_output_len(
-            input.length() as usize,
-            input_sample_rate,
-            output_sample_rate,
-        ) else {
+        let Some(output_len) =
+            rust::checked_output_len(input.len(), input_sample_rate, output_sample_rate)
+        else {
             return Float32Array::new_with_length(0);
         };
         let output = Float32Array::new_with_length(output_len as u32);
@@ -88,9 +83,12 @@ impl WholeResampler {
     }
 
     #[wasm_bindgen(js_name = "resampleWholeInto")]
-    pub fn resample_into(&self, input: Float32Array, output: Float32Array) -> usize {
-        self.as_ref()
-            .resample_whole_into(&input, &mut Float32ArrayOutput::new(&output))
+    pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
+        // Having &Float32Array as the output is faster than &mut [f32]...
+        let num_processed = self
+            .as_ref()
+            .resample_whole_into(&input[..], &mut Float32ArrayOutput::new(output));
+        num_processed
     }
 
     #[inline]

@@ -9,7 +9,7 @@ use core::arch::x86_64::*;
 use seq_macro::seq;
 
 impl<const N: usize, const A: usize> LanczosFilter<N, A> {
-    pub fn interpolate_avx_v2(&self, x: f32, samples: &(impl Input + ?Sized)) -> f32 {
+    pub fn interpolate_avx_v2(&self, x: f32, samples: &[f32]) -> f32 {
         let i = floor(x) as usize;
         let mut sum = 0.0;
         self.do_interpolate_avx_v2(i, x, samples, &mut sum);
@@ -17,21 +17,13 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
     }
 
     #[inline]
-    fn do_interpolate_avx_v2(
-        &self,
-        i: usize,
-        x: f32,
-        samples: &(impl Input + ?Sized),
-        sum: &mut f32,
-    ) {
+    fn do_interpolate_avx_v2(&self, i: usize, x: f32, samples: &[f32], sum: &mut f32) {
         let i_from = (i + 1).saturating_sub(A);
         let i_to = (i + A).min(samples.len() - 1);
         let mut s = F256::zero();
         let mut index = 0;
-        for j in i_from..=i_to {
-            s.0[index] = samples
-                .get(j)
-                .mul_add(self.kernel.interpolate(x - j as f32), s.0[index]);
+        for (j, sample) in samples.iter().enumerate().take(i_to + 1).skip(i_from) {
+            s.0[index] = sample.mul_add(self.kernel.interpolate(x - j as f32), s.0[index]);
             index += 1;
             if index == 8 {
                 index = 0;
@@ -41,7 +33,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         *sum = s.sum();
     }
 
-    pub fn interpolate_avx(&self, x: __m256, samples: &(impl Input + ?Sized)) -> __m256 {
+    pub fn interpolate_avx(&self, x: __m256, samples: &[f32]) -> __m256 {
         unsafe {
             // let i = x.floor() as usize;
             let i = _mm256_cvtps_epi32(_mm256_floor_ps(x));
@@ -58,7 +50,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         &self,
         i: __m256i,
         x: __m256,
-        samples: &(impl Input + ?Sized),
+        samples: &[f32],
         initial_index: __m256i,
         sum: &mut F256,
     ) {
@@ -90,9 +82,9 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
                 let mut sample = F256::zero();
                 let mut x_sub_j = F256::zero();
                 let mut index = _mm256_extract_epi32(initial_index, k) as usize;
-                for j in i_from_k..=i_to_k {
+                for (j, s) in samples.iter().enumerate().take(i_to_k as usize + 1).skip(i_from_k as usize) {
                     x_sub_j[index] = x_f - j as f32;
-                    sample[index] = samples.get(j as usize);
+                    sample[index] = *s;
                     index += 1;
                 }
                 sum[k] += _mm256_mul_ps(sample.into(), self.kernel.interpolate_avx(x_sub_j.into())).sum();

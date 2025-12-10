@@ -29,3 +29,22 @@ let origOutput;
     assert.equal(numProcessed, whole.length);
     assert.ok(output.every((y, i) => y === origOutput[i]));
 }
+
+{
+    const n = 44100 * 6;
+    const whole = new Float32Array(n);
+    whole.fill(0.1);
+    const outputLen = outputLength(n, 44100, 48000);
+    const output = new Float32Array(outputLen);
+    const resampler = new WholeResampler();
+    const iterations = 100
+    for (let i = 0; i < iterations; ++i) {
+        resampler.resampleWholeInto(whole, output);
+    }
+    const t0 = performance.now();
+    for (let i = 0; i < iterations; ++i) {
+        resampler.resampleWholeInto(whole, output);
+    }
+    const t1 = performance.now();
+    console.log(`WholeResampler.resampleWholeInto ${(t1 - t0) / iterations} ms`);
+}

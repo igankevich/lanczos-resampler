@@ -10,7 +10,6 @@ extern crate std;
 
 mod chunked;
 mod filter;
-mod input;
 mod kernel;
 mod math;
 mod output;
@@ -27,7 +26,6 @@ use self::math::*;
 use self::simd::*;
 
 pub use self::chunked::*;
-pub use self::input::*;
 pub use self::output::*;
 pub use self::whole::*;
 

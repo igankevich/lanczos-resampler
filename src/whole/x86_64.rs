@@ -4,7 +4,6 @@ use core::arch::x86_64::*;
 
 use super::BasicWholeResampler;
 use crate::F256;
-use crate::Input;
 use crate::LanczosFilter;
 use crate::M256Ext;
 use crate::Output;
@@ -13,7 +12,7 @@ use crate::lerp_avx;
 impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     pub(crate) fn do_resample_into_avx(
         &self,
-        input: &(impl Input + ?Sized),
+        input: &[f32],
         output_len: usize,
         output: &mut impl Output,
     ) {
@@ -84,7 +83,7 @@ mod tests {
     impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         fn resample_avx(
             &self,
-            input: &(impl Input + ?Sized),
+            input: &[f32],
             input_sample_rate: usize,
             output_sample_rate: usize,
         ) -> Vec<f32> {
@@ -105,7 +104,7 @@ mod tests {
 
         fn resample_scalar(
             &self,
-            input: &(impl Input + ?Sized),
+            input: &[f32],
             input_sample_rate: usize,
             output_sample_rate: usize,
         ) -> Vec<f32> {

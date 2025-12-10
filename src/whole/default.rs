@@ -1,6 +1,5 @@
 use crate::DEFAULT_A;
 use crate::DEFAULT_N;
-use crate::Input;
 use crate::LanczosFilter;
 use crate::Output;
 use crate::lerp;
@@ -110,7 +109,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn resample_whole(
         &self,
-        input: &(impl Input + ?Sized),
+        input: &[f32],
         input_sample_rate: usize,
         output_sample_rate: usize,
     ) -> Vec<f32> {
@@ -149,11 +148,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     ///
     /// This function shouldn't be used when processing audio track in chunks;
     /// use [`ChunkedResampler::resample_chunk`](crate::ChunkedResampler::resample_chunk) instead.
-    pub fn resample_whole_into(
-        &self,
-        input: &(impl Input + ?Sized),
-        output: &mut impl Output,
-    ) -> usize {
+    pub fn resample_whole_into(&self, input: &[f32], output: &mut impl Output) -> usize {
         let input_len = input.len();
         if input_len <= 1 {
             return 0;
@@ -209,7 +204,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
 
     pub(crate) fn do_resample_into_scalar(
         &self,
-        input: &(impl Input + ?Sized),
+        input: &[f32],
         output_len: usize,
         output: &mut impl Output,
     ) {
@@ -223,12 +218,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     }
 
     #[inline]
-    fn do_resample_into(
-        &self,
-        input: &(impl Input + ?Sized),
-        output_len: usize,
-        output: &mut impl Output,
-    ) {
+    fn do_resample_into(&self, input: &[f32], output_len: usize, output: &mut impl Output) {
         // TODO Current SIMD implementation is slow. Should consider using SIMD for interleaved
         // data...
         /*
