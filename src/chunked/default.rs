@@ -119,6 +119,19 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use lanczos_resampler::ChunkedResampler;
+    ///
+    /// let n = 1024;
+    /// let chunk = vec![0.1; n];
+    /// let mut resampler = ChunkedResampler::new(44100, 48000);
+    /// let mut output: Vec<f32> = Vec::with_capacity(resampler.max_output_chunk_len(n));
+    /// let num_processed = resampler.resample(&chunk[..], &mut output);
+    /// assert_eq!(n, num_processed);
+    /// ```
     pub fn resample(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
         // Determine how many input samples we can process and how many output samples we can
         // produce.

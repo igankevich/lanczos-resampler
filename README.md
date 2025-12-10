@@ -60,7 +60,7 @@ use lanczos_resampler::WholeResampler;
 let n = 1024;
 let track = vec![0.1; n];
 let output_len = lanczos_resampler::output_len(n, 44100, 48000);
-let mut output = vec![0.1; output_len];
+let mut output = vec![0.0; output_len];
 let resampler = WholeResampler::new();
 let mut output_slice = &mut output[..];
 let num_processed = resampler.resample_into(&track[..], &mut output_slice);

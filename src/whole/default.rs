@@ -148,6 +148,22 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     ///
     /// This function shouldn't be used when processing audio track in chunks;
     /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use lanczos_resampler::WholeResampler;
+    ///
+    /// let n = 1024;
+    /// let track = vec![0.1; n];
+    /// let output_len = lanczos_resampler::output_len(n, 44100, 48000);
+    /// let mut output = vec![0.0; output_len];
+    /// let resampler = WholeResampler::new();
+    /// let mut output_slice = &mut output[..];
+    /// let num_processed = resampler.resample_into(&track[..], &mut output_slice);
+    /// assert_eq!(n, num_processed);
+    /// assert!(output_slice.is_empty());
+    /// ```
     pub fn resample_into(&self, input: &[f32], output: &mut impl Output) -> usize {
         let input_len = input.len();
         if input_len <= 1 {
