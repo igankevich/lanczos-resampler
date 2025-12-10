@@ -1,3 +1,6 @@
 /pkg
 /target
+/cli/target
 /docs
+*.mp3
+*.raw
