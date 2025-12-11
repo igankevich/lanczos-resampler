@@ -100,8 +100,8 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     ///
     /// # Edge cases
     ///
-    /// Returns 0 when either the input length or output length is less than _max(2, A-1)_, adjusted in
-    /// accordance with sample rate ratio.
+    /// Returns 0 when either the input length is less than _max(2, A-1)_ or output length is less
+    /// than 2, adjusted in accordance with sample rate ratio.
     ///
     /// # Limitations
     ///
@@ -127,7 +127,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         // produce.
         let (chunk_len, output_len, remainder) =
             self.adjust_lengths(chunk.len(), output.remaining().unwrap_or(usize::MAX));
-        if chunk_len < 2.max(A - 1) || output_len <= 2.max(A - 1) {
+        if chunk_len < 2.max(A - 1) || output_len < 2 {
             return 0;
         }
         self.remainder = remainder;
@@ -313,8 +313,8 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
     ///
     /// # Edge cases
     ///
-    /// Returns 0 when either the number of input or output frames is less than _max(2, A-1)_, adjusted in
-    /// accordance with sample rate ratio.
+    /// Returns 0 when either the input length is less than _max(2, A-1)_ or output length is less
+    /// than 2, adjusted in accordance with sample rate ratio.
     ///
     /// # Panics
     ///
@@ -348,10 +348,10 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
         let num_input_samples = chunk.len();
         assert_eq!(0, num_input_samples % self.num_channels);
         let num_input_frames = num_input_samples / self.num_channels;
-        let num_output_frames = output.remaining().unwrap_or(usize::MAX);
+        let num_output_frames = output.remaining().unwrap_or(usize::MAX) / self.num_channels;
         let (num_input_frames, num_output_frames, remainder) =
             self.adjust_lengths(num_input_frames, num_output_frames);
-        if num_input_frames < 2.max(A - 1) || num_output_frames < 2.max(A - 1) {
+        if num_input_frames < 2.max(A - 1) || num_output_frames < 2 {
             return 0;
         }
         self.remainder = remainder;
@@ -460,7 +460,7 @@ mod tests {
             let num_channels = u.int_in_range(1..=10)?;
             let input_sample_rate = u.int_in_range(1..=100)?;
             let output_sample_rate = 2 * input_sample_rate;
-            let min_chunk_len = input_sample_rate.max(A - 1);
+            let min_chunk_len = input_sample_rate.max(A - 1).max(2) * num_channels;
             let input_len = u.int_in_range(min_chunk_len..=1000)?;
             let input = arbitrary_channels(u, input_len, num_channels)?;
             let chunks = arbitrary_chunks(u, input[0].len(), min_chunk_len, min_chunk_len)?;
@@ -481,7 +481,12 @@ mod tests {
                         for chunk_len in chunks.iter().copied() {
                             let num_read =
                                 resampler.resample(&input_slice[..chunk_len], &mut output);
-                            assert_ne!(0, num_read, "chunk_len = {chunk_len}");
+                            assert_ne!(
+                                0, num_read,
+                                "chunk_len = {chunk_len}, \
+                                sample_rate = {input_sample_rate} / {output_sample_rate}, \
+                                num_channels = {num_channels}"
+                            );
                             input_slice = &input_slice[num_read..];
                         }
                         Ok(output)
