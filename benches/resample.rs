@@ -52,7 +52,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let n = 1024;
     let mut resampler = ChunkedResampler::new(44100, 48000);
     let input = vec![0.1; n];
-    let output_len = lanczos_resampler::output_len(
+    let output_len = lanczos_resampler::num_output_frames(
         n,
         resampler.input_sample_rate(),
         resampler.output_sample_rate(),

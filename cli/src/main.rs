@@ -42,7 +42,7 @@ fn main() -> Result<(), std::io::Error> {
             assert_eq!(0, suffix.len());
             let resampler = WholeResampler::new();
             let num_input_frames = samples.len() / args.num_channels;
-            let num_output_frames = lanczos_resampler::output_len(
+            let num_output_frames = lanczos_resampler::num_output_frames(
                 num_input_frames,
                 args.input_sample_rate,
                 args.output_sample_rate,

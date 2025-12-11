@@ -53,7 +53,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output_len;
+    use crate::num_output_frames;
     use crate::tests::*;
     use alloc::vec;
     use alloc::vec::Vec;
@@ -91,7 +91,7 @@ mod tests {
             if input_len <= 1 {
                 return Vec::new();
             }
-            let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
+            let output_len = num_output_frames(input_len, input_sample_rate, output_sample_rate);
             if output_len <= 1 {
                 return Vec::new();
             }
@@ -112,7 +112,7 @@ mod tests {
             if input_len <= 1 {
                 return Vec::new();
             }
-            let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
+            let output_len = num_output_frames(input_len, input_sample_rate, output_sample_rate);
             if output_len <= 1 {
                 return Vec::new();
             }

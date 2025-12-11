@@ -15,10 +15,7 @@ const _: () = assert!(size_of::<ChunkedResampler>() == size_of::<RustChunkedResa
 
 /// A resampler that processes audio input in chunks.
 ///
-/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
-/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
-/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
-/// output is clamped to _[-1; 1]_.
+/// Use it to process audio streams.
 ///
 /// ## Parameters
 ///
@@ -67,7 +64,7 @@ impl ChunkedResampler {
     /// Get/set output sample rate in Hz.
     ///
     /// After changing the sample rate you should consider updating buffer size to
-    /// {@link ChunkedResampler.maxOutputChunkLength}.
+    /// {@link ChunkedResampler.maxNumOutputFrames}.
     #[wasm_bindgen(js_name = "outputSampleRate", getter)]
     pub fn output_sample_rate(&self) -> usize {
         self.as_ref().output_sample_rate()
@@ -90,12 +87,12 @@ impl ChunkedResampler {
     ///
     /// You should consider updating buffer size every time you change output sample rate via
     /// {@link ChunkedResampler.outputSampleRate}.
-    #[wasm_bindgen(js_name = "maxOutputChunkLength")]
-    pub fn max_output_chunk_len(
+    #[wasm_bindgen(js_name = "maxNumOutputFrames")]
+    pub fn max_num_output_frames(
         &self,
-        #[wasm_bindgen(js_name = "inputChunkLen")] input_chunk_len: usize,
+        #[wasm_bindgen(js_name = "numInputFrames")] num_input_frames: usize,
     ) -> usize {
-        self.as_ref().max_output_chunk_len(input_chunk_len)
+        self.as_ref().max_num_output_frames(num_input_frames)
     }
 
     /// Resets internal state.
@@ -119,7 +116,7 @@ impl ChunkedResampler {
     ///
     /// #### Edge cases
     ///
-    /// Returns 0 when either the input length or output length is less than 2, adjusted in
+    /// Returns 0 when either the input length or output length is less than _max(2, A-1)_, adjusted in
     /// accordance with sample rate ratio.
     ///
     /// #### Limitations
@@ -158,10 +155,7 @@ const _: () = assert!(
 
 /// A resampler that processes audio input in chunks; the channels are interleaved with each other.
 ///
-/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
-/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
-/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
-/// output is clamped to _[-1; 1]_.
+/// Use it to process audio streams.
 ///
 /// ## Parameters
 ///
@@ -220,7 +214,7 @@ impl ChunkedInterleavedResampler {
     /// Get/set output sample rate in Hz.
     ///
     /// After changing the sample rate you should consider updating buffer size to
-    /// {@link ChunkedInterleavedResampler.maxOutputChunkLength}.
+    /// {@link ChunkedInterleavedResampler.maxNumOutputFrames}.
     #[wasm_bindgen(js_name = "outputSampleRate", getter)]
     pub fn output_sample_rate(&self) -> usize {
         self.as_ref().output_sample_rate()
@@ -249,12 +243,12 @@ impl ChunkedInterleavedResampler {
     ///
     /// You should consider updating buffer size every time you change output sample rate via
     /// {@link ChunkedInterleavedResampler.outputSampleRate}.
-    #[wasm_bindgen(js_name = "maxOutputChunkLength")]
-    pub fn max_output_chunk_len(
+    #[wasm_bindgen(js_name = "maxNumOutputFrames")]
+    pub fn max_num_output_frames(
         &self,
-        #[wasm_bindgen(js_name = "inputChunkLen")] input_chunk_len: usize,
+        #[wasm_bindgen(js_name = "numInputFrames")] num_input_frames: usize,
     ) -> usize {
-        self.as_ref().max_output_chunk_len(input_chunk_len)
+        self.as_ref().max_num_output_frames(num_input_frames)
     }
 
     /// Resets internal state.
@@ -278,7 +272,7 @@ impl ChunkedInterleavedResampler {
     ///
     /// #### Edge cases
     ///
-    /// Returns 0 when either the input length or output length is less than 2, adjusted in
+    /// Returns 0 when either the number of input or output frames is less than _max(2, A-1)_, adjusted in
     /// accordance with sample rate ratio.
     ///
     /// #### Limitations

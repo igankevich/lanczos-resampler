@@ -3,7 +3,7 @@ import {
     ChunkedResampler,
     ChunkedInterleavedResampler,
     WholeResampler,
-    outputLength,
+    numOutputFrames,
 } from "./pkg/lanczos_resampler.js";
 
 let origOutput;
@@ -13,14 +13,14 @@ let origOutput;
     chunk.fill(0.1);
     const resampler = new ChunkedResampler(44100, 48000);
     const output = new Float32Array(
-        resampler.maxOutputChunkLength(chunk.length),
+        resampler.maxNumOutputFrames(chunk.length),
     );
     const numProcessed = resampler.resample(chunk, output);
     assert.equal(chunk.length, numProcessed);
     origOutput = output;
     const resampler2 = new ChunkedInterleavedResampler(44100, 48000, 1);
     const output2 = new Float32Array(
-        resampler2.maxOutputChunkLength(chunk.length),
+        resampler2.maxNumOutputFrames(chunk.length),
     );
     const numProcessed2 = resampler2.resample(chunk, output2);
     assert.equal(chunk.length, numProcessed2);
@@ -30,7 +30,7 @@ let origOutput;
 {
     const whole = new Float32Array(1024);
     whole.fill(0.1);
-    const outputLen = outputLength(1024, 44100, 48000);
+    const outputLen = numOutputFrames(1024, 44100, 48000);
     const output = new Float32Array(outputLen);
     const resampler = new WholeResampler();
     const numProcessed = resampler.resampleInto(whole, output);
@@ -60,7 +60,7 @@ function benchmark(name, callback, iterations) {
     const n = 44100 * 6;
     const whole = new Float32Array(n);
     whole.fill(0.1);
-    const outputLen = outputLength(n, 44100, 48000);
+    const outputLen = numOutputFrames(n, 44100, 48000);
     const output = new Float32Array(outputLen);
     const resampler = new WholeResampler();
     benchmark(
@@ -75,7 +75,7 @@ function benchmark(name, callback, iterations) {
     chunk.fill(0.1);
     const resampler = new ChunkedResampler(44100, 48000);
     const output = new Float32Array(
-        resampler.maxOutputChunkLength(chunk.length),
+        resampler.maxNumOutputFrames(chunk.length),
     );
     benchmark(
         "ChunkedResampler.resample",

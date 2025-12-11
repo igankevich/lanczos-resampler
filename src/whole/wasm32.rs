@@ -13,10 +13,7 @@ const _: () = assert!(size_of::<WholeResampler>() == size_of::<rust::WholeResamp
 
 /// A resampler that processes audio input as a whole.
 ///
-/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
-/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
-/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
-/// output is clamped to _[-1; 1]_.
+/// Use it to process audio streams.
 ///
 /// ## Parameters
 ///
@@ -51,11 +48,6 @@ impl WholeResampler {
     ///
     /// - Returns an empty array when either the input length or calculated output length is less than 2.
     /// - Returns an empty array when either the input length or the output sample rate is too large.
-    ///
-    /// #### Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use {@link ChunkedResampler.resample} instead.
     #[wasm_bindgen(js_name = "resample")]
     pub fn resample(
         &self,
@@ -72,7 +64,7 @@ impl WholeResampler {
         output_sample_rate: usize,
     ) -> Float32Array {
         let Some(output_len) =
-            rust::checked_output_len(input.len(), input_sample_rate, output_sample_rate)
+            rust::checked_num_output_frames(input.len(), input_sample_rate, output_sample_rate)
         else {
             return Float32Array::new_with_length(0);
         };
@@ -95,11 +87,6 @@ impl WholeResampler {
     ///
     /// Panics when the output isn't large enough to hold all the resampled points.
     /// Use {@link outputLength} to ensure that the buffer size is sufficient.
-    ///
-    /// #### Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use {@link ChunkedResampler.resample} instead.
     #[wasm_bindgen(js_name = "resampleInto")]
     pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
         // Having &Float32Array as the output is faster than &mut [f32]...
@@ -119,11 +106,6 @@ impl WholeResampler {
     ///   Use {@link outputLength} to ensure that the buffer size is sufficient.
     /// - Panics when either the input or the output length isn't evenly divisible by the number of
     ///   channels.
-    ///
-    /// #### Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use {@link ChunkedResampler.resample} instead.
     #[wasm_bindgen(js_name = "resampleInterleavedInto")]
     pub fn resample_interleaved_into(
         &self,
@@ -146,7 +128,7 @@ impl WholeResampler {
     }
 }
 
-/// Calculates resampled length of the input for given input/output sample
+/// Calculates resampled length of the input for the given input/output sample
 /// rates.
 ///
 /// #### Edge cases
@@ -156,9 +138,9 @@ impl WholeResampler {
 /// #### Limitations
 ///
 /// This function shouldn't be used when processing audio track in chunks;
-/// use {@link ChunkedResampler} instead.
-#[wasm_bindgen(js_name = "outputLength")]
-pub fn output_length(
+/// use {@link ChunkedResampler.maxNumOutputFrames} instead.
+#[wasm_bindgen(js_name = "numOutputFrames")]
+pub fn num_output_frames(
     #[wasm_bindgen(param_description = "input length", js_name = "inputLength")] input_len: usize,
     #[wasm_bindgen(
         param_description = "input sample rate in Hz",
@@ -171,7 +153,7 @@ pub fn output_length(
     )]
     output_sample_rate: usize,
 ) -> Number {
-    match rust::checked_output_len(input_len, input_sample_rate, output_sample_rate) {
+    match rust::checked_num_output_frames(input_len, input_sample_rate, output_sample_rate) {
         Some(len) => (len as u32).into(),
         None => Number::NAN.into(),
     }

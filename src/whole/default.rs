@@ -7,7 +7,7 @@ use crate::lerp;
 #[cfg(any(feature = "alloc", test))]
 use alloc::vec::Vec;
 
-/// Calculates resampled length of the input for given input/output sample
+/// Calculates resampled length of the input for the given input/output sample
 /// rates.
 ///
 /// # Panics
@@ -17,17 +17,17 @@ use alloc::vec::Vec;
 /// # Limitations
 ///
 /// This function shouldn't be used when processing audio track in chunks;
-/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
-pub const fn output_len(
-    input_len: usize,
+/// use [`ChunkedResampler::max_num_output_frames`](crate::ChunkedResampler::max_num_output_frames) instead.
+pub const fn num_output_frames(
+    num_input_frames: usize,
     input_sample_rate: usize,
     output_sample_rate: usize,
 ) -> usize {
-    checked_output_len(input_len, input_sample_rate, output_sample_rate)
+    checked_num_output_frames(num_input_frames, input_sample_rate, output_sample_rate)
         .expect("Input length or output sample rate is too large")
 }
 
-/// Calculates resampled length of the input for given input/output sample
+/// Calculates resampled length of the input for the given input/output sample
 /// rates.
 ///
 /// Returns `None` when input length or output sample rate is too large.
@@ -35,25 +35,25 @@ pub const fn output_len(
 /// # Limitations
 ///
 /// This function shouldn't be used when processing audio track in chunks;
-/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
-pub const fn checked_output_len(
-    input_len: usize,
+/// use [`ChunkedResampler::max_num_output_frames`](crate::ChunkedResampler::max_num_output_frames) instead.
+pub const fn checked_num_output_frames(
+    num_input_frames: usize,
     input_sample_rate: usize,
     output_sample_rate: usize,
 ) -> Option<usize> {
-    if input_len <= 1 || input_sample_rate == 0 || output_sample_rate == 0 {
+    if num_input_frames <= 1 || input_sample_rate == 0 || output_sample_rate == 0 {
         return Some(0);
     }
     if input_sample_rate == output_sample_rate {
-        return Some(input_len);
+        return Some(num_input_frames);
     }
-    let output_len = match input_len.checked_mul(output_sample_rate) {
+    let num_output_frames = match num_input_frames.checked_mul(output_sample_rate) {
         Some(numerator) => Some(numerator / input_sample_rate),
-        None => (input_len / input_sample_rate).checked_mul(output_sample_rate),
+        None => (num_input_frames / input_sample_rate).checked_mul(output_sample_rate),
     };
-    match output_len {
-        Some(output_len) if output_len <= 1 => Some(0),
-        output_len => output_len,
+    match num_output_frames {
+        Some(num_output_frames) if num_output_frames <= 1 => Some(0),
+        num_output_frames => num_output_frames,
     }
 }
 
@@ -62,16 +62,7 @@ pub type WholeResampler = BasicWholeResampler<DEFAULT_N, DEFAULT_A>;
 
 /// A resampler that processes audio input as a whole.
 ///
-/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
-/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
-/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
-/// output is clamped to _[-1; 1]_.
-///
-/// # Parameters
-///
-/// The recommended parameters are _N = 16, A = 3_. Using _A = 2_ might improve performance a
-/// little bit. Using larger _N_ will techincally improve precision, but precision isn't a good
-/// metric for audio signal. With _N = 16_ the kernel fits into exactly 64 B (the size of a cache line).
+/// Use it to process audio files.
 ///
 /// # Limitations
 ///
@@ -100,11 +91,6 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// # Panics
     ///
     /// Panics when either the input length or the output sample rate is too large.
-    ///
-    /// # Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
     #[cfg(any(feature = "alloc", test))]
     #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
     pub fn resample(
@@ -118,7 +104,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         if input_len <= 1 {
             return Vec::new();
         }
-        let output_len = output_len(input_len, input_sample_rate, output_sample_rate);
+        let output_len = num_output_frames(input_len, input_sample_rate, output_sample_rate);
         if output_len <= 1 {
             return Vec::new();
         }
@@ -141,13 +127,8 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// # Panics
     ///
     /// - Panics when the output isn't large enough to hold all the resampled points.
-    ///   Use [`output_len`] to ensure that the buffer size is sufficient.
+    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
     /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
-    ///
-    /// # Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
     ///
     /// # Example
     ///
@@ -156,7 +137,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     ///
     /// let n = 1024;
     /// let track = vec![0.1; n];
-    /// let output_len = lanczos_resampler::output_len(n, 44100, 48000);
+    /// let output_len = lanczos_resampler::num_output_frames(n, 44100, 48000);
     /// let mut output = vec![0.0; output_len];
     /// let resampler = WholeResampler::new();
     /// let mut output_slice = &mut output[..];
@@ -189,15 +170,10 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// # Panics
     ///
     /// - Panics when the output isn't large enough to hold all the resampled points.
-    ///   Use [`output_len`] to ensure that the buffer size is sufficient.
+    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
     /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
     /// - Panics when either the input or the remaining output length isn't evenly divisible by the number of
     ///   channels.
-    ///
-    /// # Limitations
-    ///
-    /// This function shouldn't be used when processing audio track in chunks;
-    /// use [`ChunkedResampler::resample`](crate::ChunkedResampler::resample) instead.
     pub fn resample_interleaved_into(
         &self,
         input: &[f32],
@@ -322,7 +298,7 @@ mod tests {
             let output_sample_rate = u.int_in_range(1..=100)?;
             let expected = resampler.resample(&input[..], input_sample_rate, output_sample_rate);
             let mut actual =
-                vec![f32::NAN; output_len(input_len, input_sample_rate, output_sample_rate)];
+                vec![f32::NAN; num_output_frames(input_len, input_sample_rate, output_sample_rate)];
             let mut output = &mut actual[..];
             let num_processed = resampler.resample_into(&input[..], &mut output);
             assert_eq!(0, output.len(), "Input length = {input_len}");
@@ -351,11 +327,12 @@ mod tests {
                     })
                     .collect::<Vec<_>>(),
             );
-            let mut actual = vec![
-                f32::NAN;
-                output_len(input_len, input_sample_rate, output_sample_rate)
-                    * num_channels
-            ];
+            let mut actual =
+                vec![
+                    f32::NAN;
+                    num_output_frames(input_len, input_sample_rate, output_sample_rate)
+                        * num_channels
+                ];
             let mut output = &mut actual[..];
             let num_processed = resampler.resample_interleaved_into(
                 &interleaved_input[..],
@@ -373,16 +350,16 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn checked_output_len_works() {
-        assert_eq!(Some(48000), checked_output_len(44100, 44100, 48000));
-        assert_eq!(None, checked_output_len(usize::MAX, 44100, 48000));
+    fn checked_num_output_frames_works() {
+        assert_eq!(Some(48000), checked_num_output_frames(44100, 44100, 48000));
+        assert_eq!(None, checked_num_output_frames(usize::MAX, 44100, 48000));
         assert_eq!(
             Some(usize::MAX),
-            checked_output_len(44100, 44100, usize::MAX)
+            checked_num_output_frames(44100, 44100, usize::MAX)
         );
         assert_eq!(
             Some(48000),
-            checked_output_len(usize::MAX, usize::MAX, 48000)
+            checked_num_output_frames(usize::MAX, usize::MAX, 48000)
         );
         arbtest(|u| {
             let input_len = u.arbitrary()?;
@@ -390,7 +367,7 @@ mod tests {
             let output_sample_rate = u.arbitrary()?;
             assert_eq!(
                 Some(output_sample_rate),
-                checked_output_len(input_len, input_sample_rate, output_sample_rate)
+                checked_num_output_frames(input_len, input_sample_rate, output_sample_rate)
             );
             Ok(())
         });
@@ -400,7 +377,7 @@ mod tests {
             let output_sample_rate = input_sample_rate;
             assert_eq!(
                 Some(input_len),
-                checked_output_len(input_len, input_sample_rate, output_sample_rate)
+                checked_num_output_frames(input_len, input_sample_rate, output_sample_rate)
             );
             Ok(())
         });
