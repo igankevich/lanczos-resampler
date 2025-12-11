@@ -54,6 +54,61 @@ pub fn interleave(channels: &[Vec<f32>]) -> Vec<f32> {
     interleaved
 }
 
+pub fn arbitrary_chunks(
+    u: &mut Unstructured<'_>,
+    input_len: usize,
+    min_chunk_len: usize,
+    max_chunk_len: usize,
+) -> arbitrary::Result<Vec<usize>> {
+    assert!(input_len >= min_chunk_len);
+    assert!(min_chunk_len > 0);
+    assert!(max_chunk_len > 0);
+    let max_chunks = input_len / max_chunk_len;
+    let mut chunks = Vec::with_capacity(max_chunks);
+    let mut offset = 0;
+    for i in 0..max_chunks {
+        let chunk_len: usize = if i == max_chunks - 1 {
+            input_len - offset
+        } else {
+            let max = max_chunk_len.min(input_len - offset);
+            let min = min_chunk_len.min(max);
+            u.int_in_range(min..=max)?
+        };
+        chunks.push(chunk_len);
+        offset += chunk_len;
+    }
+    while let Some(chunk) = chunks.last() {
+        let chunk_len = *chunk;
+        if chunk_len >= min_chunk_len {
+            break;
+        }
+        chunks.pop();
+        if let Some(chunk) = chunks.last_mut() {
+            *chunk += chunk_len;
+        }
+    }
+    if chunks.is_empty() {
+        chunks.push(input_len);
+    }
+    Ok(chunks)
+}
+
+#[test]
+fn arbitrary_chunks_works() {
+    arbtest(|u| {
+        let min = u.int_in_range(1..=10)?;
+        let max = min + u.int_in_range(1..=10)?;
+        let input_len = u.int_in_range(min..=1000)?;
+        let chunks = arbitrary_chunks(u, input_len, min, max)?;
+        assert_eq!(
+            input_len,
+            chunks.iter().sum::<usize>(),
+            "chunks = {chunks:?}"
+        );
+        Ok(())
+    });
+}
+
 pub fn sine_wave(num_samples: usize) -> Vec<f32> {
     assert!(num_samples > 1);
     (0..num_samples)

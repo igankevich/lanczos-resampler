@@ -131,7 +131,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
 
     /// This is a variant of [`resample`](Self::resample) that doesn't use memory allocation.
     ///
-    /// Returns the number of samples read from the input. Currently this is either 0 (see "Panics") or
+    /// Returns the number of processed input samples. Currently this is either 0 (see "Panics") or
     /// the input length.
     ///
     /// # Edge cases
@@ -191,7 +191,6 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     /// - Panics when the output isn't large enough to hold all the resampled points.
     ///   Use [`output_len`] to ensure that the buffer size is sufficient.
     /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
-    /// - Panics when the number of channels is zero.
     /// - Panics when either the input or the remaining output length isn't evenly divisible by the number of
     ///   channels.
     ///
@@ -205,10 +204,12 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         num_channels: usize,
         output: &mut impl Output,
     ) -> usize {
+        if num_channels == 0 {
+            return 0;
+        }
         if num_channels == 1 {
             return self.resample_into(input, output);
         }
-        assert_ne!(0, num_channels);
         let input_len = input.len();
         assert_eq!(0, input_len % num_channels);
         let num_input_frames = input_len / num_channels;
@@ -236,7 +237,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
                 }
             });
         }
-        num_input_frames
+        input_len
     }
 
     pub(crate) fn do_resample_into_scalar(
@@ -364,7 +365,7 @@ mod tests {
             assert_eq!(0, output.len(), "Input length = {input_len}");
             assert_eq!(expected, actual);
             if !expected.is_empty() {
-                assert_eq!(input_len, num_processed);
+                assert_eq!(input_len * num_channels, num_processed);
             }
             Ok(())
         });

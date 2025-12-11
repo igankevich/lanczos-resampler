@@ -5,6 +5,9 @@ use crate::Output;
 use crate::lerp;
 use crate::whole::default::output_len;
 
+#[cfg(any(feature = "alloc", test))]
+use alloc::vec::Vec;
+
 /// A [`BasicChunkedResampler`] with default parameters: _N = 16, A = 3_.
 pub type ChunkedResampler = BasicChunkedResampler<DEFAULT_N, DEFAULT_A>;
 
@@ -33,8 +36,6 @@ pub struct BasicChunkedResampler<const N: usize, const A: usize> {
     remainder: usize,
     // We only need A - 1 points...
     prev_chunk: [f32; A],
-    /// The length is counted from the back of the array.
-    prev_chunk_len: usize,
 }
 
 impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
@@ -47,7 +48,6 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             output_sample_rate,
             remainder: 0,
             prev_chunk: [0.0; A],
-            prev_chunk_len: 0,
         }
     }
 
@@ -96,7 +96,6 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     #[inline]
     pub fn reset(&mut self) {
         self.remainder = 0;
-        self.prev_chunk_len = 0;
     }
 
     /// Resamples input signal chunk from the source to the target sample rate and appends the
@@ -110,7 +109,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     ///
     /// # Edge cases
     ///
-    /// Returns 0 when either the input length or output length is less than 2, adjusted in
+    /// Returns 0 when either the input length or output length is less than _max(2, A)_, adjusted in
     /// accordance with sample rate ratio.
     ///
     /// # Limitations
@@ -137,7 +136,7 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         // produce.
         let (chunk_len, output_len, remainder) =
             self.adjust_lengths(chunk.len(), output.remaining().unwrap_or(usize::MAX));
-        if chunk_len <= 1 || output_len <= 1 {
+        if chunk_len < 2.max(A) || output_len <= 2.max(A) {
             return 0;
         }
         self.remainder = remainder;
@@ -147,31 +146,15 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         let i_max = (output_len - 1) as f32;
         for i in 0..output_len {
             let x = lerp(x0, x1, i as f32 / i_max);
-            let prev = &self.prev_chunk[A - self.prev_chunk_len..];
+            let prev = &self.prev_chunk[1..];
             let y = self
                 .filter
                 .interpolate_chunk(x, chunk, prev)
                 .clamp(-1.0, 1.0);
             output.write(y);
         }
-        let n = chunk_len.min(A - 1);
-        for sample in chunk.iter().skip(chunk_len - n) {
-            self.push_prev(*sample);
-        }
+        self.prev_chunk[1..].copy_from_slice(&chunk[chunk_len - (A - 1)..]);
         chunk_len
-    }
-
-    #[inline]
-    fn push_prev(&mut self, sample: f32) {
-        if 1 < self.prev_chunk_len {
-            // Shift left by 1.
-            let i = (A - self.prev_chunk_len).max(1);
-            self.prev_chunk.copy_within(i.., i - 1);
-        }
-        self.prev_chunk[A - 1] = sample;
-        if self.prev_chunk_len < A {
-            self.prev_chunk_len += 1;
-        }
     }
 
     fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
@@ -229,6 +212,212 @@ fn adjust_lengths(
     (input_len, output_len, remainder)
 }
 
+/// A [`BasicChunkedInterleavedResampler`] with default parameters: _N = 16, A = 3_.
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+pub type ChunkedInterleavedResampler = BasicChunkedInterleavedResampler<DEFAULT_N, DEFAULT_A>;
+
+/// A resampler that processes audio input in chunks; the channels are interleaved with each other.
+///
+/// This struct uses [Lanczos kernel](https://en.wikipedia.org/wiki/Lanczos_resampling)
+/// approximated by _2⋅N - 1_ points and defined on interval _[-A; A]_. The kernel is interpolated
+/// using cubic Hermite splines with second-order finite differences at spline endpoints. The
+/// output is clamped to _[-1; 1]_.
+///
+/// # Parameters
+///
+/// The recommended parameters are _N = 16, A = 3_. Using _A = 2_ might improve performance a
+/// little bit. Using larger _N_ will techincally improve precision, but precision isn't a good
+/// metric for audio signal. With _N = 16_ the kernel fits into exactly 64 B (the size of a cache line).
+///
+/// # Limitations
+///
+/// `ChunkedInterleavedResampler` produces slightly different output compared to processing the whole input at once.
+/// If this is undesired, consider using [`WholeResampler`](crate::WholeResampler).
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[derive(Clone)]
+pub struct BasicChunkedInterleavedResampler<const N: usize, const A: usize> {
+    filter: LanczosFilter<N, A>,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+    num_channels: usize,
+    remainder: usize,
+    prev_chunk: Vec<f32>,
+}
+
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
+    /// Creates new instance of resampler with the specified input and output sample rates and the
+    /// number of channels.
+    #[inline]
+    pub fn new(input_sample_rate: usize, output_sample_rate: usize, num_channels: usize) -> Self {
+        Self {
+            filter: LanczosFilter::new(),
+            input_sample_rate,
+            output_sample_rate,
+            num_channels,
+            remainder: 0,
+            prev_chunk: Vec::with_capacity((A - 1) * num_channels),
+        }
+    }
+
+    /// Returns input sample rate in Hz.
+    #[inline]
+    pub fn input_sample_rate(&self) -> usize {
+        self.input_sample_rate
+    }
+
+    /// Returns output sample rate in Hz.
+    #[inline]
+    pub fn output_sample_rate(&self) -> usize {
+        self.output_sample_rate
+    }
+
+    /// Returns number of channels.
+    #[inline]
+    pub fn num_channels(&self) -> usize {
+        self.num_channels
+    }
+
+    /// Dynamically changes output sample rate.
+    ///
+    /// After changing the sample rate you should consider updating buffer size to
+    /// [`max_output_chunk_len`](Self::max_output_chunk_len).
+    #[inline]
+    pub fn set_output_sample_rate(&mut self, value: usize) {
+        self.output_sample_rate = value;
+    }
+
+    /// Returns maximum output chunk length given the input chunk length.
+    ///
+    /// Returns the same value as [`output_len`](crate::output_len) plus one.
+    /// This additional sample is used to compensate for unevenly divisible sample rates.
+    ///
+    /// You should consider updating buffer size every time you change output sample rate via
+    /// [`set_output_sample_rate`](Self::set_output_sample_rate).
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input_chunk_len` isn't evenly divisible by the number of channels.
+    #[inline]
+    pub fn max_output_chunk_len(&self, input_chunk_len: usize) -> usize {
+        if self.num_channels == 0 {
+            return 0;
+        }
+        assert_eq!(0, input_chunk_len % self.num_channels);
+        let num_input_frames = input_chunk_len / self.num_channels;
+        let num_output_frames = output_len(
+            num_input_frames,
+            self.input_sample_rate,
+            self.output_sample_rate,
+        ) + 1;
+        num_output_frames * self.num_channels
+    }
+
+    /// Resets internal state.
+    ///
+    /// Erases any information about the previous chunk.
+    ///
+    /// Use this method when you want to reuse resampler for another audio stream.
+    #[inline]
+    pub fn reset(&mut self) {
+        self.remainder = 0;
+        self.prev_chunk.clear();
+    }
+
+    /// Resamples input signal chunk from the source to the target sample rate and appends the
+    /// resulting signal to the output.
+    ///
+    /// Returns the number of processed input frames. The output is clamped to _[-1; 1]_.
+    ///
+    /// For each [`input_sample_rate`](Self::input_sample_rate) input samples this method produces exactly
+    /// [`output_sample_rate`](Self::output_sample_rate) output samples  even if it is called multiple times with a smaller
+    /// amount of input samples; the only exception is when the output sample rate was changed in the process.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the number of input or output frames is less than _min(2, A)_, adjusted in
+    /// accordance with sample rate ratio.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `chunk.len()` isn't evenly divisible by the number of channels.
+    ///
+    /// # Limitations
+    ///
+    /// The output depends on the chunk size, hence resampling the same audio track all at once and
+    /// in chunks will produce slightly different results. This a consequence of the fact that Lanczos kernel
+    /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
+    /// be much larger than _2⋅A + 1_.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use lanczos_resampler::ChunkedInterleavedResampler;
+    ///
+    /// let n = 2 * 1024;
+    /// let chunk = vec![0.1; n];
+    /// let mut resampler = ChunkedInterleavedResampler::new(44100, 48000, 2);
+    /// let mut output: Vec<f32> = Vec::with_capacity(resampler.max_output_chunk_len(n));
+    /// let num_processed = resampler.resample(&chunk[..], &mut output);
+    /// assert_eq!(n, num_processed);
+    /// ```
+    pub fn resample(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
+        if self.num_channels == 0 {
+            return 0;
+        }
+        // Determine how many input samples we can process and how many output samples we can
+        // produce.
+        let num_input_samples = chunk.len();
+        assert_eq!(0, num_input_samples % self.num_channels);
+        let num_input_frames = num_input_samples / self.num_channels;
+        let num_output_frames = output.remaining().unwrap_or(usize::MAX);
+        let (num_input_frames, num_output_frames, remainder) =
+            self.adjust_lengths(num_input_frames, num_output_frames);
+        if num_input_frames < 2.max(A) || num_output_frames < 2.max(A) {
+            return 0;
+        }
+        self.remainder = remainder;
+        let num_input_samples = num_input_frames * self.num_channels;
+        let chunk = &chunk[0..num_input_samples];
+        let x0 = 0.0;
+        let x1 = (num_input_frames - 1) as f32;
+        let i_max = (num_output_frames - 1) as f32;
+        for i in 0..num_output_frames {
+            let x = lerp(x0, x1, i as f32 / i_max);
+            output.write_frame(self.num_channels, |output_frame| {
+                self.filter.interpolate_chunk_interleaved(
+                    x,
+                    chunk,
+                    &self.prev_chunk[..],
+                    self.num_channels,
+                    output_frame,
+                );
+                for sample in output_frame.iter_mut() {
+                    *sample = sample.clamp(-1.0, 1.0);
+                }
+            });
+        }
+        let num_new_samples = (A - 1) * self.num_channels;
+        self.prev_chunk.clear();
+        self.prev_chunk
+            .extend_from_slice(&chunk[num_input_samples - num_new_samples..num_input_samples]);
+        num_input_samples
+    }
+
+    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
+        adjust_lengths(
+            input_len,
+            output_len,
+            self.input_sample_rate,
+            self.output_sample_rate,
+            self.remainder,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,6 +429,7 @@ mod tests {
     parameterize_impl! {
         (resample_streaming_simple (16 2) (16 3))
         (resample_streaming (16 2) (16 3))
+        (resample_interleaved (16 2) (16 3))
     }
 
     fn resample_streaming_simple<const N: usize, const A: usize>() {
@@ -268,37 +458,9 @@ mod tests {
             let output_sample_rate = 2 * input_sample_rate;
             let expected_output =
                 whole_resampler.resample(&input[..], input_sample_rate, output_sample_rate);
-            let min_chunk_len = input_sample_rate;
-            let max_chunk_len = input_sample_rate;
-            let mut num_chunks = input_len / max_chunk_len;
-            let mut chunks = Vec::with_capacity(num_chunks);
-            {
-                let mut offset = 0;
-                for i in 0..num_chunks {
-                    let chunk_len: usize = if i == num_chunks - 1 {
-                        input.len() - offset
-                    } else {
-                        let max = max_chunk_len.min(input.len() - offset);
-                        let min = min_chunk_len.min(max);
-                        u.int_in_range(min..=max)?
-                    };
-                    chunks.push(chunk_len);
-                    offset += chunk_len;
-                }
-                while let Some(chunk) = chunks.last() {
-                    let chunk_len = *chunk;
-                    if chunk_len >= min_chunk_len {
-                        break;
-                    }
-                    chunks.pop();
-                    if let Some(chunk) = chunks.last_mut() {
-                        *chunk += chunk_len;
-                    }
-                }
-                num_chunks = chunks.len();
-                if num_chunks == 0 {
-                    return Ok(());
-                }
+            let chunks = arbitrary_chunks(u, input_len, input_sample_rate, input_sample_rate)?;
+            if chunks.is_empty() {
+                return Ok(());
             }
             let mut resampler =
                 BasicChunkedResampler::<N, A>::new(input_sample_rate, output_sample_rate);
@@ -312,6 +474,61 @@ mod tests {
             assert_eq!(&[] as &[f32], input_slice);
             assert_eq!(&[] as &[f32], output_slice);
             assert_vec_f32_near_relative!(expected_output, actual_output, 0.30);
+            Ok(())
+        });
+    }
+
+    fn resample_interleaved<const N: usize, const A: usize>() {
+        arbtest(|u| {
+            let num_channels = u.int_in_range(1..=10)?;
+            let input_sample_rate = u.int_in_range(1..=100)?;
+            let output_sample_rate = u.int_in_range(1..=100)?;
+            let min_chunk_len = input_sample_rate;
+            let input_len = u.int_in_range(min_chunk_len..=1000)?;
+            let input = arbitrary_channels(u, input_len, num_channels)?;
+            let interleaved_input = interleave(&input);
+            let expected = interleave(
+                &input
+                    .iter()
+                    .map(|channel| {
+                        let chunks = arbitrary_chunks(
+                            u,
+                            channel.len(),
+                            input_sample_rate,
+                            input_sample_rate,
+                        )?;
+                        if chunks.is_empty() {
+                            return Ok(Vec::new());
+                        }
+                        let mut resampler = BasicChunkedResampler::<N, A>::new(
+                            input_sample_rate,
+                            output_sample_rate,
+                        );
+                        let mut output = Vec::new();
+                        let num_processed = resampler.resample(&channel[..], &mut output);
+                        assert_eq!(channel.len(), num_processed);
+                        Ok(output)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+            let mut resampler = BasicChunkedInterleavedResampler::<N, A>::new(
+                input_sample_rate,
+                output_sample_rate,
+                num_channels,
+            );
+            let expected_output_len =
+                output_len(input_len, input_sample_rate, output_sample_rate) * num_channels;
+            let mut output = Vec::new();
+            let num_processed = resampler.resample(&interleaved_input[..], &mut output);
+            assert_eq!(
+                expected_output_len,
+                output.len(),
+                "Input length = {input_len}"
+            );
+            assert_eq!(expected, output);
+            if !expected.is_empty() {
+                assert_eq!(input_len * num_channels, num_processed);
+            }
             Ok(())
         });
     }

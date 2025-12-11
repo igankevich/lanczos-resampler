@@ -30,7 +30,7 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         if i < A {
             let n = prev_chunk.len();
             let i_from = n.saturating_sub(A - i - 1);
-            for (j, y) in prev_chunk.iter().enumerate().take(n).skip(i_from) {
+            for (j, y) in prev_chunk.iter().enumerate().skip(i_from) {
                 let k = n - j;
                 sum += y * self.kernel.interpolate(x + k as f32);
             }
@@ -60,6 +60,39 @@ impl<const N: usize, const A: usize> LanczosFilter<N, A> {
         let i_from = (i + 1).saturating_sub(A);
         let i_to = (i + 1 + A).min(frames.len());
         output_frame.fill(0.0);
+        for (j, frame) in frames.enumerate().take(i_to).skip(i_from) {
+            let kernel = self.kernel.interpolate(x - j as f32);
+            for (sample, out) in frame.iter().zip(output_frame.iter_mut()) {
+                *out += sample * kernel;
+            }
+        }
+    }
+
+    pub fn interpolate_chunk_interleaved(
+        &self,
+        x: f32,
+        chunk: &[f32],
+        prev_chunk: &[f32],
+        num_channels: usize,
+        output_frame: &mut [f32],
+    ) {
+        let i = floor(x) as usize;
+        output_frame.fill(0.0);
+        if i < A {
+            let frames = prev_chunk.chunks_exact(num_channels);
+            let n = frames.len();
+            let i_from = n.saturating_sub(A - 1 - i);
+            for (j, frame) in frames.enumerate().skip(i_from) {
+                let k = n - j;
+                let kernel = self.kernel.interpolate(x + k as f32);
+                for (sample, out) in frame.iter().zip(output_frame.iter_mut()) {
+                    *out += sample * kernel;
+                }
+            }
+        }
+        let frames = chunk.chunks_exact(num_channels);
+        let i_from = (i + 1).saturating_sub(A);
+        let i_to = (i + 1 + A).min(frames.len());
         for (j, frame) in frames.enumerate().take(i_to).skip(i_from) {
             let kernel = self.kernel.interpolate(x - j as f32);
             for (sample, out) in frame.iter().zip(output_frame.iter_mut()) {

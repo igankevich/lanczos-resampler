@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import {
     ChunkedResampler,
+    ChunkedInterleavedResampler,
     WholeResampler,
     outputLength,
 } from "./pkg/lanczos_resampler.js";
@@ -17,6 +18,13 @@ let origOutput;
     const numProcessed = resampler.resample(chunk, output);
     assert.equal(chunk.length, numProcessed);
     origOutput = output;
+    const resampler2 = new ChunkedInterleavedResampler(44100, 48000, 1);
+    const output2 = new Float32Array(
+        resampler2.maxOutputChunkLength(chunk.length),
+    );
+    const numProcessed2 = resampler2.resample(chunk, output2);
+    assert.equal(chunk.length, numProcessed2);
+    assert.ok(output2.every((y, i) => y === origOutput[i]));
 }
 
 {
@@ -28,9 +36,11 @@ let origOutput;
     const numProcessed = resampler.resampleInto(whole, output);
     assert.equal(numProcessed, whole.length);
     assert.ok(output.every((y, i) => y === origOutput[i]));
+    const output2 = new Float32Array(outputLen);
+    const numProcessed2 = resampler.resampleInterleavedInto(whole, 1, output2);
+    assert.equal(numProcessed2, whole.length);
+    assert.ok(output2.every((y, i) => y === origOutput[i]));
 }
-
-// TODO test interleaved
 
 function benchmark(name, callback, iterations) {
     // Warm-up run.

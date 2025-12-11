@@ -37,7 +37,7 @@ wasm_pack_build() {
     wasm-pack build . --no-default-features
     wasm-pack build . --no-default-features --features alloc
     wasm-pack build . --no-default-features --features std
-    du -chd0 pkg
+    du -chd0 pkg/*.wasm
 }
 
 wasm_pack_test() {

@@ -117,7 +117,6 @@ impl WholeResampler {
     ///
     /// - Panics when the output isn't large enough to hold all the resampled points.
     ///   Use {@link outputLength} to ensure that the buffer size is sufficient.
-    /// - Panics when the number of channels is zero.
     /// - Panics when either the input or the output length isn't evenly divisible by the number of
     ///   channels.
     ///

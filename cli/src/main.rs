@@ -3,7 +3,7 @@ use core::mem::size_of;
 use core::mem::size_of_val;
 use core::ptr;
 use core::slice;
-use lanczos_resampler::ChunkedResampler;
+use lanczos_resampler::ChunkedInterleavedResampler;
 use lanczos_resampler::WholeResampler;
 use std::io::Read;
 use std::io::Write;
@@ -11,10 +11,6 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 struct Args {
-    /// Audio chunk size.
-    #[clap(long = "chunk-size")]
-    chunk_size: Option<usize>,
-
     /// The number of channels.
     #[clap(long = "num-channels")]
     num_channels: usize,
@@ -57,7 +53,7 @@ fn main() -> Result<(), std::io::Error> {
                 args.num_channels,
                 &mut output.spare_capacity_mut(),
             );
-            assert_eq!(num_processed, num_input_frames);
+            assert_eq!(num_processed, samples.len());
             unsafe { output.set_len(output.capacity()) };
             let output_bytes =
                 unsafe { slice::from_raw_parts(output.as_ptr().cast(), size_of_val(&output[..])) };
@@ -65,10 +61,13 @@ fn main() -> Result<(), std::io::Error> {
             Ok(())
         }
         (None, None) => {
-            let chunk_size = args.chunk_size.unwrap_or(args.input_sample_rate);
-            let mut resampler =
-                ChunkedResampler::new(args.input_sample_rate, args.output_sample_rate);
-            let mut buf: Vec<u8> = vec![0_u8; chunk_size * size_of::<f32>()];
+            let chunk_size = args.input_sample_rate;
+            let mut resampler = ChunkedInterleavedResampler::new(
+                args.input_sample_rate,
+                args.output_sample_rate,
+                args.num_channels,
+            );
+            let mut buf: Vec<u8> = vec![0_u8; chunk_size * args.num_channels * size_of::<f32>()];
             let mut offset = 0;
             loop {
                 let n = std::io::stdin().read(&mut buf[offset..])?;
@@ -77,13 +76,14 @@ fn main() -> Result<(), std::io::Error> {
                 }
                 let (prefix, samples, suffix) = unsafe { buf[..n].align_to::<f32>() };
                 assert_eq!(0, prefix.len());
-                resampler.resample(
+                let num_processed = resampler.resample(
                     samples,
                     &mut Writer {
                         inner: std::io::stdout(),
                         frame: Vec::new(),
                     },
                 );
+                assert_ne!(0, num_processed);
                 let suffix_len = suffix.len();
                 if suffix_len != 0 {
                     buf[..suffix_len].copy_within(n - suffix_len..n, 0);
