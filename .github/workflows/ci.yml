@@ -31,4 +31,5 @@ jobs:
         run: ./ci/test.sh ${{ matrix.os }}
       # TODO
       - name: Generate GH pages
+        if: matrix.os == 'ubuntu'
         run: ./ci/gh-pages.sh

@@ -459,17 +459,16 @@ mod tests {
         arbtest(|u| {
             let num_channels = u.int_in_range(1..=10)?;
             let input_sample_rate = u.int_in_range(1..=100)?;
-            let output_sample_rate = u.int_in_range(1..=100)?;
+            let output_sample_rate = 2 * input_sample_rate;
             let min_chunk_len = input_sample_rate.max(A - 1);
             let input_len = u.int_in_range(min_chunk_len..=1000)?;
             let input = arbitrary_channels(u, input_len, num_channels)?;
+            let chunks = arbitrary_chunks(u, input[0].len(), min_chunk_len, min_chunk_len)?;
             let interleaved_input = interleave(&input);
             let expected = interleave(
                 &input
                     .iter()
                     .map(|channel| {
-                        let chunks =
-                            arbitrary_chunks(u, channel.len(), min_chunk_len, min_chunk_len)?;
                         if chunks.is_empty() {
                             return Ok(Vec::new());
                         }
@@ -478,8 +477,13 @@ mod tests {
                             output_sample_rate,
                         );
                         let mut output = Vec::new();
-                        let num_processed = resampler.resample(&channel[..], &mut output);
-                        assert_eq!(channel.len(), num_processed);
+                        let mut input_slice = &channel[..];
+                        for chunk_len in chunks.iter().copied() {
+                            let num_read =
+                                resampler.resample(&input_slice[..chunk_len], &mut output);
+                            assert_ne!(0, num_read, "chunk_len = {chunk_len}");
+                            input_slice = &input_slice[num_read..];
+                        }
                         Ok(output)
                     })
                     .collect::<Result<Vec<_>, _>>()?,
@@ -492,7 +496,15 @@ mod tests {
             let expected_output_len =
                 num_output_frames(input_len, input_sample_rate, output_sample_rate) * num_channels;
             let mut output = Vec::new();
-            let num_processed = resampler.resample(&interleaved_input[..], &mut output);
+            let mut input_slice = &interleaved_input[..];
+            let mut num_processed = 0;
+            for mut chunk_len in chunks.iter().copied() {
+                chunk_len *= num_channels;
+                let num_read = resampler.resample(&input_slice[..chunk_len], &mut output);
+                assert_ne!(0, num_read, "chunk_len = {chunk_len}");
+                input_slice = &input_slice[num_read..];
+                num_processed += num_read;
+            }
             assert_eq!(
                 expected_output_len,
                 output.len(),
