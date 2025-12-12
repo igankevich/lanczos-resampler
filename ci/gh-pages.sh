@@ -22,6 +22,7 @@ push_to_gh_pages() {
     git -C "$workdir"/gh-pages checkout gh-pages
     rsync -av --exclude .git --delete "$workdir"/docs/ "$workdir"/gh-pages/
     cd "$workdir"/gh-pages
+    git add --all
     git config --global user.name "$GITHUB_ACTOR"
     git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
     git commit -m "Update"
