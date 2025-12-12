@@ -36,4 +36,6 @@ jobs:
       # TODO
       - name: Generate GH pages
         if: matrix.os == 'ubuntu'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./ci/gh-pages.sh

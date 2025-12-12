@@ -18,7 +18,7 @@ generate_documentation() {
 
 push_to_gh_pages() {
     mkdir "$workdir"/gh-pages
-    git clone https://github.com/"$GITHUB_REPOSITORY" "$workdir"/gh-pages
+    git clone https://"$GITHUB_ACTOR":"$GITHUB_TOKEN"@github.com/"$GITHUB_REPOSITORY" "$workdir"/gh-pages
     git -C "$workdir"/gh-pages checkout gh-pages
     rsync -av --exclude .git --delete "$workdir"/docs/ "$workdir"/gh-pages/
     cd "$workdir"/gh-pages
