@@ -579,7 +579,7 @@ mod tests {
             let max_sample_rate = max_sample_rate();
             let output_sample_rate: usize = u.int_in_range(1..=max_sample_rate)?;
             let input_sample_rate: usize =
-                u.int_in_range(1..=max_sample_rate - output_sample_rate)?;
+                u.int_in_range(1..=(max_sample_rate - output_sample_rate).max(1))?;
             let input_len = input_sample_rate;
             let output_len = output_sample_rate;
             let num_chunks: usize = u.int_in_range(1..=10.min(input_len))?;
