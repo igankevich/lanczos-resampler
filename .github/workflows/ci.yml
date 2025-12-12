@@ -1,15 +1,11 @@
 ---
 name: CI
 on: [push]
-# TODO
-permissions:
-  contents: write
 jobs:
   test:
     strategy:
       matrix:
-        # os: [ubuntu, macos]
-        os: [ubuntu]
+        os: [ubuntu, macos]
     runs-on: ${{ matrix.os }}-latest
     steps:
       - name: Checkout
@@ -21,21 +17,15 @@ jobs:
       - name: Install NodeJS
         uses: actions/setup-node@v4
       - run: node --version
-      #- name: Install browsers
-      #  if: matrix.os == 'ubuntu'
-      #  run: |
-      #    sudo -n apt-get update -qq
-      #    sudo -n apt-get install -qqy --no-install-recommends firefox chromium
-      #    firefox --version
-      #    chromium --version
-      #- name: Test
-      #  env:
-      #    RUST_BACKTRACE: 1
-      #    ARBTEST_BUDGET_MS: 10000
-      #  run: ./ci/test.sh ${{ matrix.os }}
-      # TODO
-      - name: Generate GH pages
+      - name: Install browsers
         if: matrix.os == 'ubuntu'
+        run: |
+          sudo -n apt-get update -qq
+          sudo -n apt-get install -qqy --no-install-recommends firefox chromium
+          firefox --version
+          chromium --version
+      - name: Test
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./ci/gh-pages.sh
+          RUST_BACKTRACE: 1
+          ARBTEST_BUDGET_MS: 10000
+        run: ./ci/test.sh ${{ matrix.os }}

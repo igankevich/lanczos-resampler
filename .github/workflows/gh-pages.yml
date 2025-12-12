@@ -19,4 +19,6 @@ jobs:
         uses: actions/setup-node@v4
       - run: node --version
       - name: Generate GH pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./ci/gh-pages.sh
