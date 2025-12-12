@@ -42,11 +42,11 @@ wasm_pack_build() {
 
 wasm_pack_test() {
     # Doc-tests fail because of the exports.
-    wasm-pack test --lib --release --node
+    wasm-pack test --release --node -- --lib
     case "$os" in
     ubuntu)
-        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --lib --release --headless --firefox
-        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --lib --release --headless --chrome
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --release --headless --firefox -- --lib
+        env WASM_BINDGEN_USE_BROWSER=1 wasm-pack test --release --headless --chrome -- --lib
         ;;
     # TODO Fails with "Error: driver failed to bind port during startup"
     #macos)

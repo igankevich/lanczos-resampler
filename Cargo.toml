@@ -13,7 +13,7 @@ categories = ["multimedia::audio", "wasm"]
 include = ["**/*.rs", "Cargo.toml", "README.md"]
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["std"]
