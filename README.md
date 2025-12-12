@@ -131,9 +131,9 @@ console.log(output)
 
 ## Documentation
 
-Rust: <https://docs.rs/lanczos-resampler>
+Rust: <https://docs.rs/lanczos-resampler/latest/lanczos_resampler/>
 
-JS: <https://igankevich.github.com/lanczos-resampler>
+JS: <https://igankevich.github.io/lanczos-resampler>
 
 
 ## No-std support
