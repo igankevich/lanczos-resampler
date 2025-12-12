@@ -1,9 +1,6 @@
 use crate::LanczosKernel;
 use crate::floor;
 
-#[cfg(target_arch = "x86_64")]
-mod x86_64;
-
 #[derive(Clone, Default)]
 pub struct LanczosFilter<const N: usize, const A: usize> {
     kernel: LanczosKernel<N, A>,

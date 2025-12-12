@@ -13,8 +13,6 @@ mod filter;
 mod kernel;
 mod math;
 mod output;
-#[cfg(target_arch = "x86_64")]
-mod simd;
 #[cfg(test)]
 mod tests;
 mod whole;
@@ -22,8 +20,6 @@ mod whole;
 use self::filter::*;
 use self::kernel::*;
 use self::math::*;
-#[cfg(target_arch = "x86_64")]
-use self::simd::*;
 
 pub use self::chunked::*;
 pub use self::output::*;

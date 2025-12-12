@@ -216,12 +216,8 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
         input_len
     }
 
-    pub(crate) fn do_resample_into_scalar(
-        &self,
-        input: &[f32],
-        output_len: usize,
-        output: &mut impl Output,
-    ) {
+    #[inline]
+    fn do_resample_into(&self, input: &[f32], output_len: usize, output: &mut impl Output) {
         let x0 = 0.0;
         let x1 = (input.len() - 1) as f32;
         let i_max = (output_len - 1) as f32;
@@ -229,23 +225,6 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
             let x = lerp(x0, x1, i as f32 / i_max);
             output.write(self.filter.interpolate(x, input).clamp(-1.0, 1.0));
         }
-    }
-
-    #[inline]
-    fn do_resample_into(&self, input: &[f32], output_len: usize, output: &mut impl Output) {
-        // TODO Current SIMD implementation is slow. Should consider using SIMD for interleaved
-        // data...
-        /*
-        #[cfg(target_arch = "x86_64")]
-        if std::is_x86_feature_detected!("avx")
-            && std::is_x86_feature_detected!("avx2")
-            && std::is_x86_feature_detected!("sse4.1")
-            && std::is_x86_feature_detected!("sse")
-        {
-            return self.do_resample_into_avx::<N, A>(input, output);
-        }
-        */
-        self.do_resample_into_scalar(input, output_len, output);
     }
 }
 

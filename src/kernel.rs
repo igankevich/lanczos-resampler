@@ -3,12 +3,6 @@ use core::f32::consts::PI;
 use crate::floor;
 use crate::sin;
 
-#[cfg(target_arch = "x86_64")]
-mod x86_64;
-
-#[cfg(target_arch = "x86_64")]
-pub(crate) use self::x86_64::*;
-
 /// Linear interpolation.
 ///
 /// Gives exact result when t == 1.
