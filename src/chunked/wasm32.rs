@@ -1,3 +1,4 @@
+#[cfg(any(feature = "alloc", test))]
 use super::default::ChunkedInterleavedResampler as RustChunkedInterleavedResampler;
 use super::default::ChunkedResampler as RustChunkedResampler;
 use crate::Float32ArrayOutput;
@@ -144,11 +145,17 @@ impl ChunkedResampler {
     }
 }
 
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 const CHUNKED_INTERLEAVED_RESAMPLER_LEN: usize = size_of::<RustChunkedInterleavedResampler>();
 
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 const _: () = assert!(
     align_of::<ChunkedInterleavedResampler>() == align_of::<RustChunkedInterleavedResampler>()
 );
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 const _: () = assert!(
     size_of::<ChunkedInterleavedResampler>() == size_of::<RustChunkedInterleavedResampler>()
 );
@@ -165,11 +172,15 @@ const _: () = assert!(
 ///
 /// `ChunkedInterleavedResampler` produces slightly different output compared to processing the whole input at once.
 /// If this is undesired, consider using {@link WholeResampler}.
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
 pub struct ChunkedInterleavedResampler([u8; CHUNKED_INTERLEAVED_RESAMPLER_LEN]);
 
+#[cfg(any(feature = "alloc", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 #[wasm_bindgen]
 impl ChunkedInterleavedResampler {
     /// Creates new instance of resampler with the specified input and output sample rates and the
