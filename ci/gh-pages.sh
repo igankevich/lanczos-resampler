@@ -9,6 +9,7 @@ main() {
 }
 
 generate_documentation() {
+    sed -i -e 's/crate-type = .*/crate-type = ["cdylib", "rlib"]/' Cargo.toml
     rm -rf pkg
     wasm-pack build --no-typescript . --release
     tsc pkg/*.js --declaration --allowJs --emitDeclarationOnly --outDir pkg

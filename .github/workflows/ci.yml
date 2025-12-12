@@ -21,13 +21,13 @@ jobs:
       - name: Install NodeJS
         uses: actions/setup-node@v4
       - run: node --version
-      - name: Install browsers
-        if: matrix.os == 'ubuntu'
-        run: |
-          sudo -n apt-get update -qq
-          sudo -n apt-get install -qqy --no-install-recommends firefox chromium
-          firefox --version
-          chromium --version
+      #- name: Install browsers
+      #  if: matrix.os == 'ubuntu'
+      #  run: |
+      #    sudo -n apt-get update -qq
+      #    sudo -n apt-get install -qqy --no-install-recommends firefox chromium
+      #    firefox --version
+      #    chromium --version
       #- name: Test
       #  env:
       #    RUST_BACKTRACE: 1
