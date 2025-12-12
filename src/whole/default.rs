@@ -1,0 +1,364 @@
+use crate::DEFAULT_A;
+use crate::DEFAULT_N;
+use crate::LanczosFilter;
+use crate::Output;
+use crate::lerp;
+
+#[cfg(any(feature = "alloc", test))]
+use alloc::vec::Vec;
+
+/// Calculates resampled length of the input for the given input/output sample
+/// rates.
+///
+/// # Panics
+///
+/// Panics when the input length or the output sample rate is too large.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler::max_num_output_frames`](crate::ChunkedResampler::max_num_output_frames) instead.
+pub const fn num_output_frames(
+    num_input_frames: usize,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+) -> usize {
+    checked_num_output_frames(num_input_frames, input_sample_rate, output_sample_rate)
+        .expect("Input length or output sample rate is too large")
+}
+
+/// Calculates resampled length of the input for the given input/output sample
+/// rates.
+///
+/// Returns `None` when input length or output sample rate is too large.
+///
+/// # Limitations
+///
+/// This function shouldn't be used when processing audio track in chunks;
+/// use [`ChunkedResampler::max_num_output_frames`](crate::ChunkedResampler::max_num_output_frames) instead.
+pub const fn checked_num_output_frames(
+    num_input_frames: usize,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+) -> Option<usize> {
+    if num_input_frames <= 1 || input_sample_rate == 0 || output_sample_rate == 0 {
+        return Some(0);
+    }
+    if input_sample_rate == output_sample_rate {
+        return Some(num_input_frames);
+    }
+    let num_output_frames = match num_input_frames.checked_mul(output_sample_rate) {
+        Some(numerator) => Some(numerator / input_sample_rate),
+        None => (num_input_frames / input_sample_rate).checked_mul(output_sample_rate),
+    };
+    match num_output_frames {
+        Some(num_output_frames) if num_output_frames <= 1 => Some(0),
+        num_output_frames => num_output_frames,
+    }
+}
+
+/// A [`BasicWholeResampler`] with default parameters: _N = 16, A = 3_.
+pub type WholeResampler = BasicWholeResampler<DEFAULT_N, DEFAULT_A>;
+
+/// A resampler that processes audio input as a whole.
+///
+/// Use it to process audio files.
+///
+/// # Limitations
+///
+/// `WholeResampler` shouldn't be used to process audio track in chunks;
+/// use [`ChunkedResampler`](crate::ChunkedResampler) instead.
+#[derive(Clone, Default)]
+pub struct BasicWholeResampler<const N: usize, const A: usize> {
+    filter: LanczosFilter<N, A>,
+}
+
+impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
+    /// Creates new instance of resampler.
+    #[inline]
+    pub fn new() -> Self {
+        let filter = LanczosFilter::new();
+        Self { filter }
+    }
+
+    /// Resamples input signal from the source to the target sample rate and
+    /// returns the resulting output signal as a vector.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns an empty vector when either the input length or calculated output length is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either the input length or the output sample rate is too large.
+    #[cfg(any(feature = "alloc", test))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+    pub fn resample(
+        &self,
+        input: &[f32],
+        input_sample_rate: usize,
+        output_sample_rate: usize,
+    ) -> Vec<f32> {
+        // TODO Don't resample when rates are equal. Need to change tests after that.
+        let input_len = input.len();
+        if input_len <= 1 {
+            return Vec::new();
+        }
+        let output_len = num_output_frames(input_len, input_sample_rate, output_sample_rate);
+        if output_len <= 1 {
+            return Vec::new();
+        }
+        let mut output = Vec::with_capacity(output_len);
+        self.do_resample_into(input, output_len, &mut output.spare_capacity_mut());
+        // SAFETY: We initialize all elements in `do_resample_into`.
+        unsafe { output.set_len(output_len) }
+        output
+    }
+
+    /// This is a variant of [`resample`](Self::resample) that doesn't use memory allocation.
+    ///
+    /// Returns the number of processed input samples. Currently this is either 0 (see "Panics") or
+    /// the input length.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the input length or remaining output length is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// - Panics when the output isn't large enough to hold all the resampled points.
+    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
+    /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use lanczos_resampler::WholeResampler;
+    ///
+    /// let n = 1024;
+    /// let track = vec![0.1; n];
+    /// let output_len = lanczos_resampler::num_output_frames(n, 44100, 48000);
+    /// let mut output = vec![0.0; output_len];
+    /// let resampler = WholeResampler::new();
+    /// let mut output_slice = &mut output[..];
+    /// let num_processed = resampler.resample_into(&track[..], &mut output_slice);
+    /// assert_eq!(n, num_processed);
+    /// assert!(output_slice.is_empty());
+    /// ```
+    pub fn resample_into(&self, input: &[f32], output: &mut impl Output) -> usize {
+        let input_len = input.len();
+        if input_len <= 1 {
+            return 0;
+        }
+        let output_len = output
+            .remaining()
+            .expect("`resample_into` doesn't support unbounded outputs");
+        if output_len <= 1 {
+            return 0;
+        }
+        self.do_resample_into(input, output_len, output);
+        input_len
+    }
+
+    /// This is a variant of [`resample_into`](Self::resample_into)
+    /// that processes several audio channels (one audio frame) at a time.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the number of input frames or the number of remaining output frames is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// - Panics when the output isn't large enough to hold all the resampled points.
+    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
+    /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    /// - Panics when either the input or the remaining output length isn't evenly divisible by the number of
+    ///   channels.
+    pub fn resample_interleaved_into(
+        &self,
+        input: &[f32],
+        num_channels: usize,
+        output: &mut impl Output,
+    ) -> usize {
+        if num_channels == 0 {
+            return 0;
+        }
+        if num_channels == 1 {
+            return self.resample_into(input, output);
+        }
+        let input_len = input.len();
+        assert_eq!(0, input_len % num_channels);
+        let num_input_frames = input_len / num_channels;
+        if num_input_frames <= 1 {
+            return 0;
+        }
+        let output_len = output
+            .remaining()
+            .expect("`resample_interleaved_into` doesn't support unbounded outputs");
+        assert_eq!(0, output_len % num_channels);
+        let num_output_frames = output_len / num_channels;
+        if num_output_frames <= 1 {
+            return 0;
+        }
+        let x0 = 0.0;
+        let x1 = (num_input_frames - 1) as f32;
+        let i_max = (num_output_frames - 1) as f32;
+        for i in 0..num_output_frames {
+            output.write_frame(num_channels, |output_frame| {
+                let x = lerp(x0, x1, i as f32 / i_max);
+                self.filter
+                    .interpolate_interleaved(x, input, num_channels, output_frame);
+                for sample in output_frame.iter_mut() {
+                    *sample = sample.clamp(-1.0, 1.0);
+                }
+            });
+        }
+        input_len
+    }
+
+    #[inline]
+    fn do_resample_into(&self, input: &[f32], output_len: usize, output: &mut impl Output) {
+        let x0 = 0.0;
+        let x1 = (input.len() - 1) as f32;
+        let i_max = (output_len - 1) as f32;
+        for i in 0..output_len {
+            let x = lerp(x0, x1, i as f32 / i_max);
+            output.write(self.filter.interpolate(x, input).clamp(-1.0, 1.0));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::*;
+    use alloc::vec;
+
+    parameterize! {
+        resample_into_works
+        resample_interleaved_into_works
+    }
+
+    parameterize_impl! {
+        (resample_works (16 2) (16 3))
+    }
+
+    fn resample_works<const N: usize, const A: usize>() {
+        let resampler = BasicWholeResampler::<N, A>::new();
+        assert_eq!(
+            vec![0.0; 100],
+            resampler.resample(vec![0.0; 100].as_slice(), 100, 100)
+        );
+        for x in [0.1, -1.0, 1.0, 0.33] {
+            assert_vec_f32_near!(
+                vec![x; 200],
+                resampler.resample(vec![x; 100].as_slice(), 100, 200),
+                1e-1
+            );
+            assert_vec_f32_near!(
+                vec![x; 100],
+                resampler.resample(vec![x; 200].as_slice(), 200, 100),
+                1e-2
+            );
+            assert_vec_f32_near!(
+                vec![x; 100],
+                resampler.resample(vec![x; 100].as_slice(), 100, 100),
+                1e-2
+            );
+        }
+    }
+
+    fn resample_into_works<const N: usize, const A: usize>() {
+        let resampler = BasicWholeResampler::<N, A>::new();
+        arbtest(|u| {
+            let input_len = u.int_in_range(0..=1000)?;
+            let input = arbitrary_samples(u, input_len)?;
+            let input_sample_rate = u.int_in_range(1..=100)?;
+            let output_sample_rate = u.int_in_range(1..=100)?;
+            let expected = resampler.resample(&input[..], input_sample_rate, output_sample_rate);
+            let mut actual =
+                vec![f32::NAN; num_output_frames(input_len, input_sample_rate, output_sample_rate)];
+            let mut output = &mut actual[..];
+            let num_processed = resampler.resample_into(&input[..], &mut output);
+            assert_eq!(0, output.len(), "Input length = {input_len}");
+            assert_eq!(expected, actual);
+            if !expected.is_empty() {
+                assert_eq!(input_len, num_processed);
+            }
+            Ok(())
+        });
+    }
+
+    fn resample_interleaved_into_works<const N: usize, const A: usize>() {
+        let resampler = BasicWholeResampler::<N, A>::new();
+        arbtest(|u| {
+            let num_channels = u.int_in_range(1..=10)?;
+            let input_len = u.int_in_range(0..=1000)?;
+            let input = arbitrary_channels(u, input_len, num_channels)?;
+            let interleaved_input = interleave(&input);
+            let input_sample_rate = u.int_in_range(1..=100)?;
+            let output_sample_rate = u.int_in_range(1..=100)?;
+            let expected = interleave(
+                &input
+                    .iter()
+                    .map(|channel| {
+                        resampler.resample(&channel[..], input_sample_rate, output_sample_rate)
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let mut actual =
+                vec![
+                    f32::NAN;
+                    num_output_frames(input_len, input_sample_rate, output_sample_rate)
+                        * num_channels
+                ];
+            let mut output = &mut actual[..];
+            let num_processed = resampler.resample_interleaved_into(
+                &interleaved_input[..],
+                num_channels,
+                &mut output,
+            );
+            assert_eq!(0, output.len(), "Input length = {input_len}");
+            assert_eq!(expected, actual);
+            if !expected.is_empty() {
+                assert_eq!(input_len * num_channels, num_processed);
+            }
+            Ok(())
+        });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn checked_num_output_frames_works() {
+        assert_eq!(Some(48000), checked_num_output_frames(44100, 44100, 48000));
+        assert_eq!(None, checked_num_output_frames(usize::MAX, 44100, 48000));
+        assert_eq!(
+            Some(usize::MAX),
+            checked_num_output_frames(44100, 44100, usize::MAX)
+        );
+        assert_eq!(
+            Some(48000),
+            checked_num_output_frames(usize::MAX, usize::MAX, 48000)
+        );
+        arbtest(|u| {
+            let input_len = u.arbitrary()?;
+            let input_sample_rate = input_len;
+            let output_sample_rate = u.arbitrary()?;
+            assert_eq!(
+                Some(output_sample_rate),
+                checked_num_output_frames(input_len, input_sample_rate, output_sample_rate)
+            );
+            Ok(())
+        });
+        arbtest(|u| {
+            let input_len = u.arbitrary()?;
+            let input_sample_rate = u.arbitrary()?;
+            let output_sample_rate = input_sample_rate;
+            assert_eq!(
+                Some(input_len),
+                checked_num_output_frames(input_len, input_sample_rate, output_sample_rate)
+            );
+            Ok(())
+        });
+    }
+}

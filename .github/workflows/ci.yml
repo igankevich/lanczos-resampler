@@ -1,0 +1,31 @@
+---
+name: CI
+on: [push]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu, macos]
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        # https://drager.github.io/wasm-pack/installer/
+      - name: Install wasm-pack
+        run: npm install -g wasm-pack typedoc typescript
+        # https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs 
+      - name: Install NodeJS
+        uses: actions/setup-node@v4
+      - run: node --version
+      - name: Install browsers
+        if: matrix.os == 'ubuntu'
+        run: |
+          sudo -n apt-get update -qq
+          sudo -n apt-get install -qqy --no-install-recommends firefox chromium
+          firefox --version
+          chromium --version
+      - name: Test
+        env:
+          RUST_BACKTRACE: 1
+          ARBTEST_BUDGET_MS: 10000
+        run: ./ci/test.sh ${{ matrix.os }}
