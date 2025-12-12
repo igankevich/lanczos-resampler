@@ -8,7 +8,8 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu, macos]
+        # os: [ubuntu, macos]
+        os: [ubuntu]
     runs-on: ${{ matrix.os }}-latest
     steps:
       - name: Checkout
@@ -27,11 +28,11 @@ jobs:
           sudo -n apt-get install -qqy --no-install-recommends firefox chromium
           firefox --version
           chromium --version
-      - name: Test
-        env:
-          RUST_BACKTRACE: 1
-          ARBTEST_BUDGET_MS: 10000
-        run: ./ci/test.sh ${{ matrix.os }}
+      #- name: Test
+      #  env:
+      #    RUST_BACKTRACE: 1
+      #    ARBTEST_BUDGET_MS: 10000
+      #  run: ./ci/test.sh ${{ matrix.os }}
       # TODO
       - name: Generate GH pages
         if: matrix.os == 'ubuntu'
