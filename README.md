@@ -116,11 +116,11 @@ assert.equal(input.length, numProcessed);
 #### Resampling the whole audio track
 
 ```javascript
-import { WholeResampler, outputLength } as lanczos from 'lanczos-resampler';
+import { WholeResampler, numOutputFrames } as lanczos from 'lanczos-resampler';
 
 const input = new Float32Array(1024);
 input.fill(0.1);
-const outputLen = outputLength(1024, 44100, 48000);
+const outputLen = numOutputFrames(1024, 44100, 48000);
 const output = new Float32Array(outputLen);
 const resampler = new WholeResampler();
 const numProcessed = resampler.resampleInto(input, output);

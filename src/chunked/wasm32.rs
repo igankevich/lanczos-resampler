@@ -83,7 +83,7 @@ impl ChunkedResampler {
 
     /// Get maximum output chunk length given the input chunk length.
     ///
-    /// Returns the same value as {@link outputLength} plus one.
+    /// Returns the same value as {@link numOutputFrames} plus one.
     /// This additional sample is used to compensate for unevenly divisible sample rates.
     ///
     /// You should consider updating buffer size every time you change output sample rate via
@@ -249,7 +249,7 @@ impl ChunkedInterleavedResampler {
 
     /// Get maximum output chunk length given the input chunk length.
     ///
-    /// Returns the same value as {@link outputLength} plus one.
+    /// Returns the same value as {@link numOutputFrames} plus one.
     /// This additional sample is used to compensate for unevenly divisible sample rates.
     ///
     /// You should consider updating buffer size every time you change output sample rate via

@@ -86,7 +86,7 @@ impl WholeResampler {
     /// #### Panics
     ///
     /// Panics when the output isn't large enough to hold all the resampled points.
-    /// Use {@link outputLength} to ensure that the buffer size is sufficient.
+    /// Use {@link numOutputFrames} to ensure that the buffer size is sufficient.
     #[wasm_bindgen(js_name = "resampleInto")]
     pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
         // Having &Float32Array as the output is faster than &mut [f32]...
@@ -103,7 +103,7 @@ impl WholeResampler {
     /// #### Panics
     ///
     /// - Panics when the output isn't large enough to hold all the resampled points.
-    ///   Use {@link outputLength} to ensure that the buffer size is sufficient.
+    ///   Use {@link numOutputFrames} to ensure that the buffer size is sufficient.
     /// - Panics when either the input or the output length isn't evenly divisible by the number of
     ///   channels.
     #[wasm_bindgen(js_name = "resampleInterleavedInto")]

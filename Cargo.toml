@@ -22,7 +22,6 @@ alloc = []
 
 [dependencies]
 libm = "0.2.15"
-seq-macro = "0.3.6"
 
 [dev-dependencies]
 arbitrary = "1.4.2"
