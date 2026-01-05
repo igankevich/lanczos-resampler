@@ -109,8 +109,8 @@ const resampler = new ChunkedResampler(44100, 48000);
 const input = new Float32Array(1024);
 input.fill(0.1);
 const output = new Float32Array(resampler.maxNumOutputFrames(input.length));
-const numProcessed = resampler.resample(input, output);
-assert.equal(input.length, numProcessed);
+const { numRead, numWritten } = resampler.resample(input, output);
+assert.equal(input.length, numRead);
 ```
 
 #### Resampling the whole audio track
@@ -123,8 +123,8 @@ input.fill(0.1);
 const outputLen = numOutputFrames(1024, 44100, 48000);
 const output = new Float32Array(outputLen);
 const resampler = new WholeResampler();
-const numProcessed = resampler.resampleInto(input, output);
-assert.equal(input.length, numProcessed);
+const { numRead, numWritten } = resampler.resampleInto(input, output);
+assert.equal(input.length, numRead);
 console.log(output)
 ```
 
