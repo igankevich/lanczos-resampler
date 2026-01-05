@@ -1,8 +1,8 @@
 # Lanczos resampler
 
-[![Crates.io Version](https://img.shields.io/crates/v/lanczos-resampler)](https://crates.io/crates/lanczos-resampler)
-[![Rust docs](https://docs.rs/lanczos-resampler/badge.svg)](https://docs.rs/lanczos-resampler)
-[![NPM Version](https://img.shields.io/npm/v/lanczos-resampler)](https://www.npmjs.com/package/lanczos-resampler)
+[![crates.io](https://img.shields.io/crates/v/lanczos-resampler)](https://crates.io/crates/lanczos-resampler)
+[![docs.rs](https://img.shields.io/docsrs/lanczos-resampler/latest?label=docs.rs)](https://docs.rs/lanczos-resampler)
+[![npmjs.com](https://img.shields.io/npm/v/lanczos-resampler)](https://www.npmjs.com/package/lanczos-resampler)
 [![JS docs](https://img.shields.io/badge/js-typedoc-blue)](https://igankevich.github.io/lanczos-resampler/)
 
 
