@@ -1,6 +1,7 @@
 # Lanczos resampler
 
 [![Crates.io Version](https://img.shields.io/crates/v/lanczos-resampler)](https://crates.io/crates/lanczos-resampler)
+![NPM Version](https://img.shields.io/npm/v/lanczos-resampler)
 [![Docs](https://docs.rs/lanczos-resampler/badge.svg)](https://docs.rs/lanczos-resampler)
 [![dependency status](https://deps.rs/repo/github/igankevich/lanczos-resampler/status.svg)](https://deps.rs/repo/github/igankevich/lanczos-resampler)
 
