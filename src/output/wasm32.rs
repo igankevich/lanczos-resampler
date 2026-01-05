@@ -24,6 +24,12 @@ impl<'a> Float32ArrayOutput<'a> {
             frame: [0.0; MAX_FRAME_LEN],
         }
     }
+
+    /// Get the current offset from the beginning of the array.
+    #[inline]
+    pub const fn position(&self) -> u32 {
+        self.offset
+    }
 }
 
 impl Output for Float32ArrayOutput<'_> {

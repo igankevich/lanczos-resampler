@@ -12,19 +12,21 @@ let origOutput;
     const chunk = new Float32Array(1024);
     chunk.fill(0.1);
     const resampler = new ChunkedResampler(44100, 48000);
-    const output = new Float32Array(
-        resampler.maxNumOutputFrames(chunk.length),
-    );
-    const numProcessed = resampler.resample(chunk, output);
-    assert.equal(chunk.length, numProcessed);
+    const output = new Float32Array(resampler.maxNumOutputFrames(chunk.length));
+    const { numRead, numWritten } = resampler.resample(chunk, output);
+    assert.equal(chunk.length, numRead);
+    assert.equal(output.length - 1, numWritten);
     origOutput = output;
     const resampler2 = new ChunkedInterleavedResampler(44100, 48000, 1);
     const output2 = new Float32Array(
         resampler2.maxNumOutputFrames(chunk.length),
     );
-    const numProcessed2 = resampler2.resample(chunk, output2);
-    assert.equal(chunk.length, numProcessed2);
-    assert.ok(output2.every((y, i) => y === origOutput[i]));
+    {
+        const { numRead, numWritten } = resampler2.resample(chunk, output2);
+        assert.equal(chunk.length, numRead);
+        assert.equal(output2.length - 1, numWritten);
+        assert.ok(output2.every((y, i) => y === origOutput[i]));
+    }
 }
 
 {
@@ -74,9 +76,7 @@ function benchmark(name, callback, iterations) {
     const chunk = new Float32Array(1024);
     chunk.fill(0.1);
     const resampler = new ChunkedResampler(44100, 48000);
-    const output = new Float32Array(
-        resampler.maxNumOutputFrames(chunk.length),
-    );
+    const output = new Float32Array(resampler.maxNumOutputFrames(chunk.length));
     benchmark(
         "ChunkedResampler.resample",
         () => resampler.resample(chunk, output),
