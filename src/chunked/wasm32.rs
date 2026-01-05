@@ -109,7 +109,8 @@ impl ChunkedResampler {
     /// Resamples input signal chunk from the source to the target sample rate and appends the
     /// resulting signal to the output.
     ///
-    /// Returns the number of processed input samples. The output is clamped to _[-1; 1]_.
+    /// Returns the number of processed input samples and the number of produced output samples.
+    /// The output is clamped to _[-1; 1]_.
     ///
     /// For each {@link ChunkedResampler.inputSampleRate} input samples this method produces exactly
     /// {@link ChunkedResampler.outputSampleRate} output samples  even if it is called multiple times with a smaller
@@ -127,9 +128,14 @@ impl ChunkedResampler {
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
     #[wasm_bindgen(js_name = "resample")]
-    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> usize {
-        self.as_mut()
-            .resample(&chunk[..], &mut Float32ArrayOutput::new(&output))
+    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.as_mut().resample(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
     }
 
     #[inline]
@@ -275,7 +281,8 @@ impl ChunkedInterleavedResampler {
     /// Resamples input signal chunk from the source to the target sample rate and appends the
     /// resulting signal to the output.
     ///
-    /// Returns the number of processed input samples. The output is clamped to _[-1; 1]_.
+    /// Returns the number of processed input samples and the number of produced output samples.
+    /// The output is clamped to _[-1; 1]_.
     ///
     /// For each {@link ChunkedInterleavedResampler.inputSampleRate} input samples this method produces exactly
     /// {@link ChunkedInterleavedResampler.outputSampleRate} output samples  even if it is called multiple times with a smaller
@@ -293,9 +300,14 @@ impl ChunkedInterleavedResampler {
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
     #[wasm_bindgen(js_name = "resample")]
-    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> usize {
-        self.as_mut()
-            .resample(&chunk[..], &mut Float32ArrayOutput::new(&output))
+    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.as_mut().resample(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
     }
 
     #[inline]
@@ -309,4 +321,16 @@ impl ChunkedInterleavedResampler {
         // SAFETY: Self and ChunkedInterleavedResampler have the same size and the same alignment.
         unsafe { core::mem::transmute(self) }
     }
+}
+
+/// Resampling outcome.
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct ResampleOutcome {
+    /// How many samples were read from the input.
+    #[wasm_bindgen(js_name = "numRead")]
+    pub num_read: usize,
+    /// How many samples were wrtten to the output.
+    #[wasm_bindgen(js_name = "numWritten")]
+    pub num_written: usize,
 }
