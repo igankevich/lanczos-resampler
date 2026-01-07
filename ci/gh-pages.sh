@@ -25,8 +25,8 @@ push_to_gh_pages() {
     git add --all
     git config --global user.name "$GITHUB_ACTOR"
     git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
-    git commit -m "Update"
-    git push
+    git commit -m "Update" || true
+    git push || true
 }
 
 cleanup() {
