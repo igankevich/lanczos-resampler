@@ -12,6 +12,7 @@ generate_documentation() {
     sed -i -e 's/crate-type = .*/crate-type = ["cdylib", "rlib"]/' Cargo.toml
     rm -rf pkg
     wasm-pack build --no-typescript . --release
+    node js/scaffolding.js
     tsc pkg/*.js --declaration --allowJs --emitDeclarationOnly --outDir pkg
     typedoc --out "$workdir"/docs
 }
