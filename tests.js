@@ -9,30 +9,30 @@ import {
 let origOutput;
 
 {
-    const chunk = new Float32Array(1024);
+    const chunk = new Float32Array(288000);
     chunk.fill(0.1);
-    const resampler = new ChunkedResampler(44100, 48000);
+    const resampler = new ChunkedResampler(48000, 44100);
     const output = new Float32Array(resampler.maxNumOutputFrames(chunk.length));
     const { numRead, numWritten } = resampler.resample(chunk, output);
-    assert.equal(chunk.length, numRead);
-    assert.equal(output.length - 1, numWritten);
+    assert.equal(numRead, chunk.length);
+    assert.equal(numWritten, output.length - 1);
     origOutput = output;
-    const resampler2 = new ChunkedInterleavedResampler(44100, 48000, 1);
+    const resampler2 = new ChunkedInterleavedResampler(48000, 44100, 1);
     const output2 = new Float32Array(
         resampler2.maxNumOutputFrames(chunk.length),
     );
     {
         const { numRead, numWritten } = resampler2.resample(chunk, output2);
-        assert.equal(chunk.length, numRead);
-        assert.equal(output2.length - 1, numWritten);
+        assert.equal(numRead, chunk.length);
+        assert.equal(numWritten, output2.length - 1);
         assert.ok(output2.every((y, i) => y === origOutput[i]));
     }
 }
 
 {
-    const whole = new Float32Array(1024);
+    const whole = new Float32Array(288000);
     whole.fill(0.1);
-    const outputLen = numOutputFrames(1024, 44100, 48000);
+    const outputLen = numOutputFrames(whole.length, 48000, 44100);
     const output = new Float32Array(outputLen);
     const resampler = new WholeResampler();
     const numProcessed = resampler.resampleInto(whole, output);
