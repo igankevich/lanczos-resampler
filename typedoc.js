@@ -1,8 +1,9 @@
 export default {
     compilerOptions: {
-        lib: ["esnext"],
+        lib: ['esnext'],
+        allowJs: true,
     },
-    highlightLanguages: ["rust", "javascript", "bash"],
+    highlightLanguages: ['rust', 'javascript', 'bash'],
     excludeNotDocumented: true,
-    entryPoints: ["pkg/lanczos_resampler.d.ts"],
-};
+    entryPoints: ['pkg/lanczos_resampler.d.ts', 'pkg/loader.js'],
+}

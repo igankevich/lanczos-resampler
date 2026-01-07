@@ -57,6 +57,7 @@ wasm_pack_test() {
 
 wasm_integration_tests() {
     node --experimental-wasm-modules tests.js
+    node js/text-decoder.test.js
 }
 
 wasm_doc() {
