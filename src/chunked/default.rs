@@ -159,32 +159,46 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     }
 }
 
+// Integer that is twice as large as `usize`.
+#[cfg(target_pointer_width = "64")]
+type Uint = u128;
+#[cfg(any(target_pointer_width = "16", target_pointer_width = "32"))]
+type Uint = u64;
+
+// Sanity check.
+const _: () = assert!(core::mem::size_of::<usize>() * 2 == core::mem::size_of::<Uint>());
+
 #[inline]
 fn adjust_lengths(
-    mut input_len: usize,
-    mut output_len: usize,
+    input_len: usize,
+    output_len: usize,
     input_sample_rate: usize,
     output_sample_rate: usize,
-    mut remainder: usize,
+    remainder: usize,
 ) -> (usize, usize, usize) {
     if input_len == 0 || output_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
         return (0, 0, remainder);
     }
+    let mut input_len = input_len as Uint;
+    let mut output_len = output_len as Uint;
+    let input_sample_rate = input_sample_rate as Uint;
+    let output_sample_rate = output_sample_rate as Uint;
+    let mut remainder = remainder as Uint;
     // Clamp input length.
-    let max_input_len = (usize::MAX / output_sample_rate).saturating_sub(remainder);
+    let max_input_len = (usize::MAX as Uint * input_sample_rate - remainder) / output_sample_rate;
     if input_len > max_input_len {
         input_len = max_input_len;
     }
     if input_len == 0 {
-        return (0, 0, remainder);
+        return (0, 0, remainder as usize);
     }
     // Clamp output length.
-    let max_output_len = usize::MAX / input_sample_rate;
+    let max_output_len = usize::MAX as Uint * output_sample_rate / input_sample_rate;
     if output_len > max_output_len {
         output_len = max_output_len;
     }
     if output_len == 0 {
-        return (0, 0, remainder);
+        return (0, 0, remainder as usize);
     }
     // Do at most two steps of fixed-point iteration to determine output length.
     let lhs = input_len * output_sample_rate + remainder;
@@ -193,14 +207,22 @@ fn adjust_lengths(
         // One step is enough.
         output_len = lhs / input_sample_rate;
         remainder = lhs % input_sample_rate;
-        return (input_len, output_len, remainder);
+        // Sanity checks.
+        debug_assert!(input_len <= usize::MAX as Uint);
+        debug_assert!(output_len <= usize::MAX as Uint);
+        debug_assert!(remainder <= usize::MAX as Uint);
+        return (input_len as usize, output_len as usize, remainder as usize);
     }
     // Do the second step with the new input length.
     input_len = (rhs / output_sample_rate).min(input_len);
     let lhs = input_len * output_sample_rate + remainder;
     output_len = lhs / input_sample_rate;
     remainder = lhs % input_sample_rate;
-    (input_len, output_len, remainder)
+    // Sanity checks.
+    debug_assert!(input_len <= usize::MAX as Uint);
+    debug_assert!(output_len <= usize::MAX as Uint);
+    debug_assert!(remainder <= usize::MAX as Uint);
+    (input_len as usize, output_len as usize, remainder as usize)
 }
 
 /// A [`BasicChunkedInterleavedResampler`] with default parameters: _N = 16, A = 3_.
@@ -559,11 +581,12 @@ mod tests {
             adjust_lengths(44100, usize::MAX, 44100, 48000, 0)
         );
         assert_eq!(
-            (1, 1, 0),
+            (usize::MAX, usize::MAX, 0),
             adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, 0)
         );
+        // -1 because of the remainder.
         assert_eq!(
-            (0, 0, usize::MAX),
+            (usize::MAX - 1, usize::MAX, 0),
             adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, usize::MAX)
         );
     }
