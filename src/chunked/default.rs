@@ -24,7 +24,8 @@ pub struct BasicChunkedResampler<const N: usize, const A: usize> {
     filter: LanczosFilter<N, A>,
     input_sample_rate: usize,
     output_sample_rate: usize,
-    remainder: usize,
+    lhs_remainder: usize,
+    rhs_remainder: usize,
     // We only need A - 1 points...
     prev_chunk: [f32; A],
 }
@@ -37,7 +38,8 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             filter: LanczosFilter::new(),
             input_sample_rate,
             output_sample_rate,
-            remainder: 0,
+            lhs_remainder: 0,
+            rhs_remainder: 0,
             prev_chunk: [0.0; A],
         }
     }
@@ -86,7 +88,8 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     /// Use this method when you want to reuse resampler for another audio stream.
     #[inline]
     pub fn reset(&mut self) {
-        self.remainder = 0;
+        self.lhs_remainder = 0;
+        self.rhs_remainder = 0;
     }
 
     /// Resamples input signal chunk from the source to the target sample rate and appends the
@@ -125,12 +128,13 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     pub fn resample(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
         // Determine how many input samples we can process and how many output samples we can
         // produce.
-        let (chunk_len, output_len, remainder) =
+        let (chunk_len, output_len, lhs_remainder, rhs_remainder) =
             self.adjust_lengths(chunk.len(), output.remaining().unwrap_or(usize::MAX));
         if chunk_len < 2.max(A - 1) || output_len < 2 {
             return 0;
         }
-        self.remainder = remainder;
+        self.lhs_remainder = lhs_remainder;
+        self.rhs_remainder = rhs_remainder;
         let chunk = &chunk[0..chunk_len];
         let x0 = 0.0;
         let x1 = (chunk_len - 1) as f32;
@@ -148,13 +152,14 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         chunk_len
     }
 
-    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
+    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize, usize) {
         adjust_lengths(
             input_len,
             output_len,
             self.input_sample_rate,
             self.output_sample_rate,
-            self.remainder,
+            self.lhs_remainder,
+            self.rhs_remainder,
         )
     }
 }
@@ -174,55 +179,70 @@ fn adjust_lengths(
     output_len: usize,
     input_sample_rate: usize,
     output_sample_rate: usize,
-    remainder: usize,
-) -> (usize, usize, usize) {
+    lhs_remainder: usize,
+    rhs_remainder: usize,
+) -> (usize, usize, usize, usize) {
     if input_len == 0 || output_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
-        return (0, 0, remainder);
+        return (0, 0, lhs_remainder, rhs_remainder);
     }
     let mut input_len = input_len as Uint;
     let mut output_len = output_len as Uint;
     let input_sample_rate = input_sample_rate as Uint;
     let output_sample_rate = output_sample_rate as Uint;
-    let mut remainder = remainder as Uint;
+    let mut lhs_remainder = lhs_remainder as Uint;
+    let mut rhs_remainder = rhs_remainder as Uint;
     // Clamp input length.
-    let max_input_len = (usize::MAX as Uint * input_sample_rate - remainder) / output_sample_rate;
+    let max_input_len =
+        (usize::MAX as Uint * input_sample_rate - lhs_remainder) / output_sample_rate;
     if input_len > max_input_len {
         input_len = max_input_len;
     }
     if input_len == 0 {
-        return (0, 0, remainder as usize);
+        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
     }
     // Clamp output length.
-    let max_output_len = usize::MAX as Uint * output_sample_rate / input_sample_rate;
+    let max_output_len =
+        (usize::MAX as Uint * output_sample_rate - rhs_remainder) / input_sample_rate;
     if output_len > max_output_len {
         output_len = max_output_len;
     }
     if output_len == 0 {
-        return (0, 0, remainder as usize);
+        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
     }
     // Do at most two steps of fixed-point iteration to determine output length.
-    let lhs = input_len * output_sample_rate + remainder;
-    let rhs = output_len * input_sample_rate;
+    let lhs = input_len * output_sample_rate + lhs_remainder;
+    let rhs = output_len * input_sample_rate + rhs_remainder;
     if lhs < rhs {
-        // One step is enough.
+        // Input length determines output length.
         output_len = lhs / input_sample_rate;
-        remainder = lhs % input_sample_rate;
+        lhs_remainder = lhs % input_sample_rate;
         // Sanity checks.
         debug_assert!(input_len <= usize::MAX as Uint);
         debug_assert!(output_len <= usize::MAX as Uint);
-        debug_assert!(remainder <= usize::MAX as Uint);
-        return (input_len as usize, output_len as usize, remainder as usize);
+        debug_assert!(lhs_remainder <= usize::MAX as Uint);
+        debug_assert!(rhs_remainder <= usize::MAX as Uint);
+        (
+            input_len as usize,
+            output_len as usize,
+            lhs_remainder as usize,
+            rhs_remainder as usize,
+        )
+    } else {
+        // Output length determines input length.
+        input_len = rhs / output_sample_rate;
+        rhs_remainder = rhs % output_sample_rate;
+        // Sanity checks.
+        debug_assert!(input_len <= usize::MAX as Uint);
+        debug_assert!(output_len <= usize::MAX as Uint);
+        debug_assert!(lhs_remainder <= usize::MAX as Uint);
+        debug_assert!(rhs_remainder <= usize::MAX as Uint);
+        (
+            input_len as usize,
+            output_len as usize,
+            lhs_remainder as usize,
+            rhs_remainder as usize,
+        )
     }
-    // Do the second step with the new input length.
-    input_len = (rhs / output_sample_rate).min(input_len);
-    let lhs = input_len * output_sample_rate + remainder;
-    output_len = lhs / input_sample_rate;
-    remainder = lhs % input_sample_rate;
-    // Sanity checks.
-    debug_assert!(input_len <= usize::MAX as Uint);
-    debug_assert!(output_len <= usize::MAX as Uint);
-    debug_assert!(remainder <= usize::MAX as Uint);
-    (input_len as usize, output_len as usize, remainder as usize)
 }
 
 /// A [`BasicChunkedInterleavedResampler`] with default parameters: _N = 16, A = 3_.
@@ -246,7 +266,8 @@ pub struct BasicChunkedInterleavedResampler<const N: usize, const A: usize> {
     input_sample_rate: usize,
     output_sample_rate: usize,
     num_channels: usize,
-    remainder: usize,
+    lhs_remainder: usize,
+    rhs_remainder: usize,
     prev_chunk: Vec<f32>,
 }
 
@@ -262,7 +283,8 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
             input_sample_rate,
             output_sample_rate,
             num_channels,
-            remainder: 0,
+            lhs_remainder: 0,
+            rhs_remainder: 0,
             prev_chunk: Vec::with_capacity((A - 1) * num_channels),
         }
     }
@@ -320,7 +342,8 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
     /// Use this method when you want to reuse resampler for another audio stream.
     #[inline]
     pub fn reset(&mut self) {
-        self.remainder = 0;
+        self.lhs_remainder = 0;
+        self.rhs_remainder = 0;
         self.prev_chunk.clear();
     }
 
@@ -371,12 +394,13 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
         assert_eq!(0, num_input_samples % self.num_channels);
         let num_input_frames = num_input_samples / self.num_channels;
         let num_output_frames = output.remaining().unwrap_or(usize::MAX) / self.num_channels;
-        let (num_input_frames, num_output_frames, remainder) =
+        let (num_input_frames, num_output_frames, lhs_remainder, rhs_remainder) =
             self.adjust_lengths(num_input_frames, num_output_frames);
         if num_input_frames < 2.max(A - 1) || num_output_frames < 2 {
             return 0;
         }
-        self.remainder = remainder;
+        self.lhs_remainder = lhs_remainder;
+        self.rhs_remainder = rhs_remainder;
         let num_input_samples = num_input_frames * self.num_channels;
         let chunk = &chunk[0..num_input_samples];
         let x0 = 0.0;
@@ -404,13 +428,14 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
         num_input_samples
     }
 
-    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize) {
+    fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize, usize) {
         adjust_lengths(
             input_len,
             output_len,
             self.input_sample_rate,
             self.output_sample_rate,
-            self.remainder,
+            self.lhs_remainder,
+            self.rhs_remainder,
         )
     }
 }
@@ -549,50 +574,60 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn adjust_lengths_works() {
         assert_eq!(
-            (44100, 48000, 0),
-            adjust_lengths(44100, 48000, 44100, 48000, 0)
+            (44100, 48000, 0, 0),
+            adjust_lengths(44100, 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100, 48000, 0),
-            adjust_lengths(2 * 44100, 48000, 44100, 48000, 0)
+            (44100, 48000, 0, 0),
+            adjust_lengths(2 * 44100, 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100, 48000, 0),
-            adjust_lengths(44100, 2 * 48000, 44100, 48000, 0)
+            (44100, 48000, 0, 0),
+            adjust_lengths(44100, 2 * 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (2 * 44100, 2 * 48000, 0),
-            adjust_lengths(2 * 44100, 2 * 48000, 44100, 48000, 0)
+            (2 * 44100, 2 * 48000, 0, 0),
+            adjust_lengths(2 * 44100, 2 * 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100 / 3, 48000 / 3, 0),
-            adjust_lengths(44100 / 3, 48000, 44100, 48000, 0)
+            (44100 / 3, 48000 / 3, 0, 0),
+            adjust_lengths(44100 / 3, 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100 / 3, 48000 / 3, 0),
-            adjust_lengths(44100, 48000 / 3, 44100, 48000, 0)
+            (44100 / 3, 48000 / 3, 0, 0),
+            adjust_lengths(44100, 48000 / 3, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100, 48000, 0),
-            adjust_lengths(usize::MAX, 48000, 44100, 48000, 0)
+            (44100, 48000, 0, 0),
+            adjust_lengths(usize::MAX, 48000, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (44100, 48000, 0),
-            adjust_lengths(44100, usize::MAX, 44100, 48000, 0)
+            (44100, 48000, 0, 0),
+            adjust_lengths(44100, usize::MAX, 44100, 48000, 0, 0)
         );
         assert_eq!(
-            (usize::MAX, usize::MAX, 0),
-            adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, 0)
+            (usize::MAX, usize::MAX, 0, 0),
+            adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, 0, 0)
         );
-        // -1 because of the remainder.
         assert_eq!(
-            (usize::MAX - 1, usize::MAX, 0),
-            adjust_lengths(usize::MAX, usize::MAX, usize::MAX, usize::MAX, usize::MAX)
+            (usize::MAX, usize::MAX, usize::MAX, 0),
+            adjust_lengths(
+                usize::MAX,
+                usize::MAX,
+                usize::MAX,
+                usize::MAX,
+                usize::MAX,
+                0
+            )
         );
+        assert_eq!((129, 128), {
+            let (a, b, ..) = adjust_lengths(288000, 128, 48000, 47538, 0, 0);
+            (a, b)
+        });
     }
 
     fn max_sample_rate() -> usize {
-        (usize::MAX as f64).sqrt().ceil() as usize
+        1_000_000
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -610,7 +645,8 @@ mod tests {
             // TODO output len should also be arbitrary
             let mut total_input_chunks_len = 0;
             let mut total_output_chunks_len = 0;
-            let mut output_len_remainder = 0;
+            let mut lhs_remainder = 0;
+            let mut rhs_remainder = 0;
             let mut offset = 0;
             for i in 0..num_chunks {
                 let chunk_len: usize = if i == num_chunks - 1 {
@@ -618,22 +654,35 @@ mod tests {
                 } else {
                     u.int_in_range(0..=max_chunk_len.min(input_len - offset))?
                 };
-                let (input_chunk_len, output_chunk_len, output_rem) = adjust_lengths(
+                let (input_chunk_len, output_chunk_len, lhs_rem, rhs_rem) = adjust_lengths(
                     chunk_len,
-                    output_len,
+                    // Use larger output length to ensure that we never determine input length from
+                    // the output length.
+                    2 * output_len,
                     input_sample_rate,
                     output_sample_rate,
-                    output_len_remainder,
+                    lhs_remainder,
+                    rhs_remainder,
                 );
-                //eprintln!("{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {output_len_remainder}) -> {input_chunk_len} {output_chunk_len} {output_rem}");
-                output_len_remainder = output_rem;
+                //std::eprintln!(
+                //    "{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {lhs_remainder}, {rhs_remainder}) -> {input_chunk_len} {output_chunk_len} {lhs_rem} {rhs_rem}"
+                //);
+                lhs_remainder = lhs_rem;
+                rhs_remainder = rhs_rem;
                 total_input_chunks_len += input_chunk_len;
                 total_output_chunks_len += output_chunk_len;
                 offset += input_chunk_len;
             }
-            assert_eq!(input_len, total_input_chunks_len);
-            assert_eq!(output_len, total_output_chunks_len);
-            assert_eq!(0, output_len_remainder);
+            assert!(
+                input_len == total_input_chunks_len
+                    && output_len == total_output_chunks_len
+                    && 0 == lhs_remainder
+                    && 0 == rhs_remainder,
+                "input length = {total_input_chunks_len} (expected {input_len}), \
+                output length = {total_output_chunks_len} (expected {output_len}), \
+                lhs remainder = {lhs_remainder} (expected 0), \
+                rhs remainder = {rhs_remainder} (expected 0)"
+            );
             Ok(())
         });
     }

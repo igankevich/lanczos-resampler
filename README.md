@@ -25,7 +25,8 @@ Thanks to small kernel size the processing time of a typical audio chunk is very
 
 #### Robustness
 
-When you're resampling from _N_ Hz to _M_ Hz, for each _N_ input samples you will get exactly _M_ output samples[^1].
+When you're resampling from _N_ Hz to _M_ Hz, for each _N_ input samples you will get exactly _M_ output samples,
+provided that the output has enough space[^1].
 This results in predictable audio stream playback
 and simplifies time synchronization between different streams (e.g. video and audio).
 
