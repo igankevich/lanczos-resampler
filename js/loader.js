@@ -1,11 +1,34 @@
 /**
  * This module provides functions to asynchronously load the library.
  *
- * This can be useful inside audio worklets and web workers.
+ * These can be useful inside audio worklets and web workers.
  * @module loader
  */
 import './text-decoder.js'
 import { __wbg_set_wasm } from './lanczos_resampler_bg.js'
+
+/**
+ * Initialize the library using WebAssembly instance exports.
+ *
+ * Use this function to asynchronously initialize the library.
+ * This function is a simple setter that doesn't involve WebAssembly compilation.
+ *
+ * #### Example
+ *
+ * ```javascript
+ * import { ChunkedResampler, IMPORT_OBJECT, initWithExports } from 'lanczos-resampler/loader'
+ * import codeURL from 'lanczos-resampler/code.wasm?url' // Vite.
+ *
+ * const result = await WebAssembly.instantiateStreaming(fetch(codeURL), IMPORT_OBJECT)
+ * initWithExports(result.instance.exports)
+ *
+ * const resampler = new ChunkedResampler(44100, 48000)
+ * console.debug(resampler)
+ * ```
+ */
+export function initWithExports(exports) {
+    __wbg_set_wasm(exports)
+}
 
 /**
  * Instantiate WebAssembly module using hard-coded BASE64 string.
@@ -63,8 +86,7 @@ export async function initWithBase64() {
  * ```
  */
 export async function initWithFetch(url, options) {
-    const response = await fetch(url, options)
-    const result = await WebAssembly.instantiateStreaming(response, IMPORT_OBJECT)
+    const result = await WebAssembly.instantiateStreaming(fetch(url, options), IMPORT_OBJECT)
     __wbg_set_wasm(result.instance.exports)
 }
 
