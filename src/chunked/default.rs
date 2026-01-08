@@ -662,7 +662,9 @@ mod tests {
                     lhs_remainder,
                     rhs_remainder,
                 );
-                //eprintln!("{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {lhs_remainder}) -> {input_chunk_len} {output_chunk_len} {lhs_rem}");
+                std::eprintln!(
+                    "{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {lhs_remainder}, {rhs_remainder}) -> {input_chunk_len} {output_chunk_len} {lhs_rem} {rhs_rem}"
+                );
                 lhs_remainder = lhs_rem;
                 rhs_remainder = rhs_rem;
                 total_input_chunks_len += input_chunk_len;
