@@ -671,33 +671,15 @@ mod tests {
                 total_output_chunks_len += output_chunk_len;
                 offset += input_chunk_len;
             }
-            assert_eq!(
-                input_len, total_input_chunks_len,
-                "input length = {total_input_chunks_len}, \
-                output length = {total_output_chunks_len}, \
-                lhs remainder = {lhs_remainder}, \
-                rhs remainder = {rhs_remainder}"
-            );
-            assert_eq!(
-                output_len, total_output_chunks_len,
-                "input length = {total_input_chunks_len}, \
-                output length = {total_output_chunks_len}, \
-                lhs remainder = {lhs_remainder}, \
-                rhs remainder = {rhs_remainder}"
-            );
-            assert_eq!(
-                0, lhs_remainder,
-                "input length = {total_input_chunks_len}, \
-                output length = {total_output_chunks_len}, \
-                lhs remainder = {lhs_remainder}, \
-                rhs remainder = {rhs_remainder}"
-            );
-            assert_eq!(
-                0, rhs_remainder,
-                "input length = {total_input_chunks_len}, \
-                output length = {total_output_chunks_len}, \
-                lhs remainder = {lhs_remainder}, \
-                rhs remainder = {rhs_remainder}"
+            assert!(
+                input_len == total_input_chunks_len
+                    && output_len == total_output_chunks_len
+                    && 0 == lhs_remainder
+                    && 0 == rhs_remainder,
+                "input length = {total_input_chunks_len} (expected {input_len}), \
+                output length = {total_output_chunks_len} (expected {output_len}), \
+                lhs remainder = {lhs_remainder} (expected 0), \
+                rhs remainder = {rhs_remainder} (expected 0)"
             );
             Ok(())
         });
