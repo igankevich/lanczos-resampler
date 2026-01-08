@@ -662,19 +662,43 @@ mod tests {
                     lhs_remainder,
                     rhs_remainder,
                 );
-                std::eprintln!(
-                    "{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {lhs_remainder}, {rhs_remainder}) -> {input_chunk_len} {output_chunk_len} {lhs_rem} {rhs_rem}"
-                );
+                //std::eprintln!(
+                //    "{i} {num_chunks} {offset} adjust({chunk_len}, {output_len}, {input_sample_rate}, {output_sample_rate}, {lhs_remainder}, {rhs_remainder}) -> {input_chunk_len} {output_chunk_len} {lhs_rem} {rhs_rem}"
+                //);
                 lhs_remainder = lhs_rem;
                 rhs_remainder = rhs_rem;
                 total_input_chunks_len += input_chunk_len;
                 total_output_chunks_len += output_chunk_len;
                 offset += input_chunk_len;
             }
-            assert_eq!(input_len, total_input_chunks_len);
-            assert_eq!(output_len, total_output_chunks_len);
-            assert_eq!(0, lhs_remainder);
-            assert_eq!(0, rhs_remainder);
+            assert_eq!(
+                input_len, total_input_chunks_len,
+                "input length = {total_input_chunks_len}, \
+                output length = {total_output_chunks_len}, \
+                lhs remainder = {lhs_remainder}, \
+                rhs remainder = {rhs_remainder}"
+            );
+            assert_eq!(
+                output_len, total_output_chunks_len,
+                "input length = {total_input_chunks_len}, \
+                output length = {total_output_chunks_len}, \
+                lhs remainder = {lhs_remainder}, \
+                rhs remainder = {rhs_remainder}"
+            );
+            assert_eq!(
+                0, lhs_remainder,
+                "input length = {total_input_chunks_len}, \
+                output length = {total_output_chunks_len}, \
+                lhs remainder = {lhs_remainder}, \
+                rhs remainder = {rhs_remainder}"
+            );
+            assert_eq!(
+                0, rhs_remainder,
+                "input length = {total_input_chunks_len}, \
+                output length = {total_output_chunks_len}, \
+                lhs remainder = {lhs_remainder}, \
+                rhs remainder = {rhs_remainder}"
+            );
             Ok(())
         });
     }
