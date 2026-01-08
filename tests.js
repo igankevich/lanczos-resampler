@@ -11,6 +11,17 @@ let origOutput
 {
     const chunk = new Float32Array(288000)
     chunk.fill(0.1)
+    const resampler = new ChunkedResampler(48000, 48000)
+    resampler.outputSampleRate = 47538
+    const output = new Float32Array(128)
+    const { numRead, numWritten } = resampler.resample(chunk, output)
+    assert.equal(numRead, 129)
+    assert.equal(numWritten, output.length)
+}
+
+{
+    const chunk = new Float32Array(288000)
+    chunk.fill(0.1)
     const resampler = new ChunkedResampler(48000, 44100)
     const output = new Float32Array(resampler.maxNumOutputFrames(chunk.length))
     const { numRead, numWritten } = resampler.resample(chunk, output)
