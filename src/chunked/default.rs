@@ -627,7 +627,7 @@ mod tests {
     }
 
     fn max_sample_rate() -> usize {
-        (usize::MAX as f64).sqrt().ceil() as usize
+        1_000_000
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -656,7 +656,9 @@ mod tests {
                 };
                 let (input_chunk_len, output_chunk_len, lhs_rem, rhs_rem) = adjust_lengths(
                     chunk_len,
-                    output_len,
+                    // Use larger output length to ensure that we never determine input length from
+                    // the output length.
+                    2 * output_len,
                     input_sample_rate,
                     output_sample_rate,
                     lhs_remainder,
