@@ -1,3 +1,4 @@
+use crate::BigUsize;
 use crate::DEFAULT_A;
 use crate::DEFAULT_N;
 use crate::LanczosFilter;
@@ -164,15 +165,6 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
     }
 }
 
-// Integer that is twice as large as `usize`.
-#[cfg(target_pointer_width = "64")]
-type Uint = u128;
-#[cfg(any(target_pointer_width = "16", target_pointer_width = "32"))]
-type Uint = u64;
-
-// Sanity check.
-const _: () = assert!(core::mem::size_of::<usize>() * 2 == core::mem::size_of::<Uint>());
-
 #[inline]
 fn adjust_lengths(
     input_len: usize,
@@ -185,29 +177,29 @@ fn adjust_lengths(
     if input_len == 0 || output_len == 0 || input_sample_rate == 0 || output_sample_rate == 0 {
         return (0, 0, lhs_remainder, rhs_remainder);
     }
-    let mut input_len = input_len as Uint;
-    let mut output_len = output_len as Uint;
-    let input_sample_rate = input_sample_rate as Uint;
-    let output_sample_rate = output_sample_rate as Uint;
-    let mut lhs_remainder = lhs_remainder as Uint;
-    let mut rhs_remainder = rhs_remainder as Uint;
+    let mut input_len = input_len as BigUsize;
+    let mut output_len = output_len as BigUsize;
+    let input_sample_rate = input_sample_rate as BigUsize;
+    let output_sample_rate = output_sample_rate as BigUsize;
+    let mut lhs_remainder = lhs_remainder as BigUsize;
+    let mut rhs_remainder = rhs_remainder as BigUsize;
     // Clamp input length.
     let max_input_len =
-        (usize::MAX as Uint * input_sample_rate - lhs_remainder) / output_sample_rate;
+        (usize::MAX as BigUsize * input_sample_rate - lhs_remainder) / output_sample_rate;
+    if max_input_len == 0 {
+        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
+    }
     if input_len > max_input_len {
         input_len = max_input_len;
     }
-    if input_len == 0 {
-        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
-    }
     // Clamp output length.
     let max_output_len =
-        (usize::MAX as Uint * output_sample_rate - rhs_remainder) / input_sample_rate;
+        (usize::MAX as BigUsize * output_sample_rate - rhs_remainder) / input_sample_rate;
+    if max_output_len == 0 {
+        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
+    }
     if output_len > max_output_len {
         output_len = max_output_len;
-    }
-    if output_len == 0 {
-        return (0, 0, lhs_remainder as usize, rhs_remainder as usize);
     }
     // Do at most two steps of fixed-point iteration to determine output length.
     let lhs = input_len * output_sample_rate + lhs_remainder;
@@ -217,10 +209,10 @@ fn adjust_lengths(
         output_len = lhs / input_sample_rate;
         lhs_remainder = lhs % input_sample_rate;
         // Sanity checks.
-        debug_assert!(input_len <= usize::MAX as Uint);
-        debug_assert!(output_len <= usize::MAX as Uint);
-        debug_assert!(lhs_remainder <= usize::MAX as Uint);
-        debug_assert!(rhs_remainder <= usize::MAX as Uint);
+        debug_assert!(input_len <= usize::MAX as BigUsize);
+        debug_assert!(output_len <= usize::MAX as BigUsize);
+        debug_assert!(lhs_remainder <= usize::MAX as BigUsize);
+        debug_assert!(rhs_remainder <= usize::MAX as BigUsize);
         (
             input_len as usize,
             output_len as usize,
@@ -232,10 +224,10 @@ fn adjust_lengths(
         input_len = rhs / output_sample_rate;
         rhs_remainder = rhs % output_sample_rate;
         // Sanity checks.
-        debug_assert!(input_len <= usize::MAX as Uint);
-        debug_assert!(output_len <= usize::MAX as Uint);
-        debug_assert!(lhs_remainder <= usize::MAX as Uint);
-        debug_assert!(rhs_remainder <= usize::MAX as Uint);
+        debug_assert!(input_len <= usize::MAX as BigUsize);
+        debug_assert!(output_len <= usize::MAX as BigUsize);
+        debug_assert!(lhs_remainder <= usize::MAX as BigUsize);
+        debug_assert!(rhs_remainder <= usize::MAX as BigUsize);
         (
             input_len as usize,
             output_len as usize,
