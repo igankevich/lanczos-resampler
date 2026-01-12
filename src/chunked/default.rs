@@ -136,6 +136,54 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
         }
         self.lhs_remainder = lhs_remainder;
         self.rhs_remainder = rhs_remainder;
+        self.do_resample(chunk, output, chunk_len, output_len);
+        chunk_len
+    }
+
+    /// Resamples input signal chunk to fill the remaining space in the output.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input samples / number of output samples_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the remaining output space or too large to fully fit into the remaining output space.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the input length is less than _max(2, A-1)_ or remaining output length is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    pub fn resample_exact(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
+        let chunk_len = chunk.len();
+        if chunk_len < 2.max(A - 1) {
+            return 0;
+        }
+        let output_len = output
+            .remaining()
+            .expect("`resample_exact` doesn't support unbounded outputs");
+        if output_len < 2 {
+            return 0;
+        }
+        self.update_remainders(output_len);
+        self.do_resample(chunk, output, chunk_len, output_len);
+        chunk_len
+    }
+
+    fn do_resample(
+        &mut self,
+        chunk: &[f32],
+        output: &mut impl Output,
+        chunk_len: usize,
+        output_len: usize,
+    ) {
         let chunk = &chunk[0..chunk_len];
         let x0 = 0.0;
         let x1 = (chunk_len - 1) as f32;
@@ -150,7 +198,6 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             output.write(y);
         }
         self.prev_chunk[1..].copy_from_slice(&chunk[chunk_len - (A - 1)..]);
-        chunk_len
     }
 
     fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize, usize) {
@@ -162,6 +209,16 @@ impl<const N: usize, const A: usize> BasicChunkedResampler<N, A> {
             self.lhs_remainder,
             self.rhs_remainder,
         )
+    }
+
+    fn update_remainders(&mut self, output_len: usize) {
+        update_remainders(
+            output_len,
+            self.input_sample_rate,
+            self.output_sample_rate,
+            &mut self.lhs_remainder,
+            &mut self.rhs_remainder,
+        );
     }
 }
 
@@ -234,6 +291,31 @@ fn adjust_lengths(
             lhs_remainder as usize,
             rhs_remainder as usize,
         )
+    }
+}
+
+#[inline]
+fn update_remainders(
+    output_len: usize,
+    input_sample_rate: usize,
+    output_sample_rate: usize,
+    lhs_remainder_ret: &mut usize,
+    rhs_remainder_ret: &mut usize,
+) {
+    let output_len = output_len as BigUsize;
+    let input_sample_rate = input_sample_rate as BigUsize;
+    let output_sample_rate = output_sample_rate as BigUsize;
+    let lhs_remainder = *lhs_remainder_ret as BigUsize;
+    let rhs_remainder = *rhs_remainder_ret as BigUsize;
+    // Plug actual output sample rate into lhs and rhs:
+    // actual output sample rate = output len * input sample rate / input len
+    let tmp = output_len * input_sample_rate;
+    let lhs = tmp + lhs_remainder;
+    let rhs = tmp + rhs_remainder;
+    if lhs < rhs {
+        *lhs_remainder_ret = (lhs % input_sample_rate) as usize;
+    } else {
+        *rhs_remainder_ret = (rhs % output_sample_rate) as usize;
     }
 }
 
@@ -393,6 +475,62 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
         }
         self.lhs_remainder = lhs_remainder;
         self.rhs_remainder = rhs_remainder;
+        self.do_resample(chunk, output, num_input_frames, num_output_frames);
+        num_input_samples
+    }
+
+    /// Resamples input signal chunk to fill the remaining space in the output.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input frames / number of output frames_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the remaining output space or too large to fully fit into the remaining output space.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// # Edge cases
+    ///
+    /// Returns 0 when either the number of input frames is less than _max(2, A-1)_ or remaining output length is less than 2.
+    ///
+    /// # Panics
+    ///
+    /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    /// - Panics when the number of input/output frames isn't evenly divisible by the number of channels.
+    pub fn resample_exact(&mut self, chunk: &[f32], output: &mut impl Output) -> usize {
+        if self.num_channels == 0 {
+            return 0;
+        }
+        let num_input_samples = chunk.len();
+        assert_eq!(0, num_input_samples % self.num_channels);
+        let num_input_frames = num_input_samples / self.num_channels;
+        let num_output_samples = output
+            .remaining()
+            .expect("`resample_exact` doesn't support unbounded outputs");
+        assert_eq!(0, num_output_samples % self.num_channels);
+        let num_output_frames = num_output_samples / self.num_channels;
+        if num_input_frames < 2.max(A - 1) {
+            return 0;
+        }
+        if num_output_frames < 2 {
+            return 0;
+        }
+        self.update_remainders(num_output_frames);
+        self.do_resample(chunk, output, num_input_frames, num_output_frames);
+        num_input_samples
+    }
+
+    fn do_resample(
+        &mut self,
+        chunk: &[f32],
+        output: &mut impl Output,
+        num_input_frames: usize,
+        num_output_frames: usize,
+    ) {
         let num_input_samples = num_input_frames * self.num_channels;
         let chunk = &chunk[0..num_input_samples];
         let x0 = 0.0;
@@ -417,7 +555,6 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
         self.prev_chunk.clear();
         self.prev_chunk
             .extend_from_slice(&chunk[num_input_samples - num_new_samples..num_input_samples]);
-        num_input_samples
     }
 
     fn adjust_lengths(&self, input_len: usize, output_len: usize) -> (usize, usize, usize, usize) {
@@ -429,6 +566,16 @@ impl<const N: usize, const A: usize> BasicChunkedInterleavedResampler<N, A> {
             self.lhs_remainder,
             self.rhs_remainder,
         )
+    }
+
+    fn update_remainders(&mut self, num_output_frames: usize) {
+        update_remainders(
+            num_output_frames,
+            self.input_sample_rate,
+            self.output_sample_rate,
+            &mut self.lhs_remainder,
+            &mut self.rhs_remainder,
+        );
     }
 }
 
@@ -444,6 +591,8 @@ mod tests {
         (resample_streaming_simple (16 2) (16 3))
         (resample_streaming (16 2) (16 3))
         (resample_interleaved (16 2) (16 3))
+        (resample_exact (16 2) (16 3))
+        (resample_exact_interleaved (16 2) (16 3))
     }
 
     fn resample_streaming_simple<const N: usize, const A: usize>() {
@@ -558,6 +707,78 @@ mod tests {
             if !expected.is_empty() {
                 assert_eq!(input_len * num_channels, num_processed);
             }
+            Ok(())
+        });
+    }
+
+    fn resample_exact<const N: usize, const A: usize>() {
+        arbtest(|u| {
+            let input_sample_rate = u.int_in_range(2.max(A - 1)..=1_000_000)?;
+            let output_sample_rate = u.int_in_range(2..=1_000_000)?;
+            let input_len = u.int_in_range(
+                (input_sample_rate / 2).max(A - 1).max(2)
+                    ..=(input_sample_rate + input_sample_rate / 2)
+                        .max(A - 1)
+                        .max(2),
+            )?;
+            let output_len = u.int_in_range(
+                (output_sample_rate / 2).max(2)
+                    ..=(output_sample_rate + output_sample_rate / 2).max(2),
+            )?;
+            let mut resampler =
+                BasicChunkedResampler::<N, A>::new(input_sample_rate, output_sample_rate);
+            let input = arbitrary_samples(u, input_len)?;
+            let mut output = vec![f32::NAN; output_len];
+            let mut output_slice = &mut output[..];
+            let num_processed = resampler.resample_exact(&input, &mut output_slice);
+            assert!(
+                num_processed == input_len && output_slice.is_empty(),
+                "num_processed = {num_processed}, \
+                input_len = {input_len}, \
+                output_slice.len() = {}, \
+                input_sample_rate = {input_sample_rate}, \
+                output_sample_rate = {output_sample_rate}",
+                output_slice.len()
+            );
+            Ok(())
+        });
+    }
+
+    fn resample_exact_interleaved<const N: usize, const A: usize>() {
+        arbtest(|u| {
+            let num_channels = u.int_in_range(1..=10)?;
+            let input_sample_rate = u.int_in_range(2.max(A - 1)..=1_000_000)?;
+            let output_sample_rate = u.int_in_range(2..=1_000_000)?;
+            let num_input_frames = u.int_in_range(
+                (input_sample_rate / 2).max(A - 1).max(2)
+                    ..=(input_sample_rate + input_sample_rate / 2)
+                        .max(A - 1)
+                        .max(2),
+            )?;
+            let num_output_frames = u.int_in_range(
+                (output_sample_rate / 2).max(2)
+                    ..=(output_sample_rate + output_sample_rate / 2).max(2),
+            )?;
+            let mut resampler = BasicChunkedInterleavedResampler::<N, A>::new(
+                input_sample_rate,
+                output_sample_rate,
+                num_channels,
+            );
+            let input = arbitrary_channels(u, num_input_frames, num_channels)?;
+            let interleaved_input = interleave(&input);
+            let mut output = vec![f32::NAN; num_output_frames * num_channels];
+            let mut output_slice = &mut output[..];
+            let num_processed = resampler.resample_exact(&interleaved_input, &mut output_slice);
+            assert!(
+                num_processed == num_input_frames * num_channels && output_slice.is_empty(),
+                "num_processed = {num_processed}, \
+                num_input_frames = {num_input_frames}, \
+                output_slice.len() = {}, \
+                input_sample_rate = {input_sample_rate}, \
+                output_sample_rate = {output_sample_rate}, \
+                num_channels = {num_channels}",
+                output_slice.len()
+            );
             Ok(())
         });
     }

@@ -131,9 +131,7 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     ///
     /// # Panics
     ///
-    /// - Panics when the output isn't large enough to hold all the resampled points.
-    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
-    /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
+    /// Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
     ///
     /// # Example
     ///
@@ -174,8 +172,6 @@ impl<const N: usize, const A: usize> BasicWholeResampler<N, A> {
     ///
     /// # Panics
     ///
-    /// - Panics when the output isn't large enough to hold all the resampled points.
-    ///   Use [`num_output_frames`] to ensure that the buffer size is sufficient.
     /// - Panics when the output is unbounded, i.e. [`Output::remaining`] returns `None`.
     /// - Panics when either the input or the remaining output length isn't evenly divisible by the number of
     ///   channels.

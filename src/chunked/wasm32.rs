@@ -138,6 +138,34 @@ impl ChunkedResampler {
         }
     }
 
+    /// Resamples input signal chunk to fill the output array.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input samples / number of output samples_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the output array or too large to fully fit into the output array.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the input length is less than _max(2, A-1)_ or output length is less than 2.
+    #[wasm_bindgen(js_name = "resampleExact")]
+    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.as_mut().resample_exact(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
+    }
+
     #[inline]
     fn as_ref(&self) -> &RustChunkedResampler {
         // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
@@ -303,6 +331,34 @@ impl ChunkedInterleavedResampler {
     pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
         let mut output = Float32ArrayOutput::new(&output);
         let num_read = self.as_mut().resample(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
+    }
+
+    /// Resamples input signal chunk to fill the output array.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input frames / number of output frames_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the output array or too large to fully fit into the output array.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the number of input frames is less than _max(2, A-1)_ or output length is less than 2.
+    #[wasm_bindgen(js_name = "resampleExact")]
+    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.as_mut().resample_exact(&chunk[..], &mut output);
         let num_written = output.position() as usize;
         ResampleOutcome {
             num_read,
