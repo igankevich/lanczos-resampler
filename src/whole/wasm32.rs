@@ -1,15 +1,8 @@
 use super::default as rust;
 use crate::Float32ArrayOutput;
-use core::ptr;
-use core::slice;
 use js_sys::Float32Array;
 use js_sys::Number;
 use wasm_bindgen::prelude::*;
-
-const WHOLE_RESAMPLER_LEN: usize = size_of::<rust::WholeResampler>();
-
-const _: () = assert!(align_of::<WholeResampler>() == align_of::<rust::WholeResampler>());
-const _: () = assert!(size_of::<WholeResampler>() == size_of::<rust::WholeResampler>());
 
 /// A resampler that processes audio input as a whole.
 ///
@@ -25,20 +18,15 @@ const _: () = assert!(size_of::<WholeResampler>() == size_of::<rust::WholeResamp
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
-pub struct WholeResampler([u8; WHOLE_RESAMPLER_LEN]);
+pub struct WholeResampler(rust::WholeResampler);
 
 #[wasm_bindgen]
 impl WholeResampler {
     /// Create new resampler.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        let mut buf = [0_u8; WHOLE_RESAMPLER_LEN];
         let resampler = rust::WholeResampler::new();
-        // SAFETY: Self and WholeResampler have the same size and the same alignment.
-        buf.copy_from_slice(unsafe {
-            slice::from_raw_parts(ptr::from_ref(&resampler).cast(), WHOLE_RESAMPLER_LEN)
-        });
-        Self(buf)
+        Self(resampler)
     }
 
     /// Resample input signal from the source to the target sample rate and
@@ -69,7 +57,7 @@ impl WholeResampler {
             return Float32Array::new_with_length(0);
         };
         let output = Float32Array::new_with_length(output_len as u32);
-        self.as_ref()
+        self.0
             .resample_into(&input, &mut Float32ArrayOutput::new(&output));
         output
     }
@@ -90,7 +78,7 @@ impl WholeResampler {
     #[wasm_bindgen(js_name = "resampleInto")]
     pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
         // Having &Float32Array as the output is faster than &mut [f32]...
-        self.as_ref()
+        self.0
             .resample_into(&input[..], &mut Float32ArrayOutput::new(output))
     }
 
@@ -114,17 +102,11 @@ impl WholeResampler {
         num_channels: usize,
         output: &Float32Array,
     ) -> usize {
-        self.as_ref().resample_interleaved_into(
+        self.0.resample_interleaved_into(
             &input[..],
             num_channels,
             &mut Float32ArrayOutput::new(output),
         )
-    }
-
-    #[inline]
-    fn as_ref(&self) -> &rust::WholeResampler {
-        // SAFETY: Self and WholeResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
     }
 }
 

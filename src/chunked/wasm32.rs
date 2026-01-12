@@ -2,17 +2,8 @@
 use super::default::ChunkedInterleavedResampler as RustChunkedInterleavedResampler;
 use super::default::ChunkedResampler as RustChunkedResampler;
 use crate::Float32ArrayOutput;
-use core::mem::align_of;
-use core::mem::size_of;
-use core::ptr;
-use core::slice;
 use js_sys::Float32Array;
 use wasm_bindgen::prelude::*;
-
-const CHUNKED_RESAMPLER_LEN: usize = size_of::<RustChunkedResampler>();
-
-const _: () = assert!(align_of::<ChunkedResampler>() == align_of::<RustChunkedResampler>());
-const _: () = assert!(size_of::<ChunkedResampler>() == size_of::<RustChunkedResampler>());
 
 /// A resampler that processes audio input in chunks.
 ///
@@ -29,7 +20,7 @@ const _: () = assert!(size_of::<ChunkedResampler>() == size_of::<RustChunkedResa
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
-pub struct ChunkedResampler([u8; CHUNKED_RESAMPLER_LEN]);
+pub struct ChunkedResampler(RustChunkedResampler);
 
 #[wasm_bindgen]
 impl ChunkedResampler {
@@ -47,19 +38,16 @@ impl ChunkedResampler {
         )]
         output_sample_rate: usize,
     ) -> Self {
-        let mut buf = [0_u8; CHUNKED_RESAMPLER_LEN];
-        let resampler = RustChunkedResampler::new(input_sample_rate, output_sample_rate);
-        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
-        buf.copy_from_slice(unsafe {
-            slice::from_raw_parts(ptr::from_ref(&resampler).cast(), CHUNKED_RESAMPLER_LEN)
-        });
-        Self(buf)
+        Self(RustChunkedResampler::new(
+            input_sample_rate,
+            output_sample_rate,
+        ))
     }
 
     /// Get input sample rate in Hz.
     #[wasm_bindgen(js_name = "inputSampleRate", getter)]
     pub fn input_sample_rate(&self) -> usize {
-        self.as_ref().input_sample_rate()
+        self.0.input_sample_rate()
     }
 
     /// Get/set output sample rate in Hz.
@@ -68,7 +56,7 @@ impl ChunkedResampler {
     /// {@link ChunkedResampler.maxNumOutputFrames}.
     #[wasm_bindgen(js_name = "outputSampleRate", getter)]
     pub fn output_sample_rate(&self) -> usize {
-        self.as_ref().output_sample_rate()
+        self.0.output_sample_rate()
     }
 
     // The documentation is overwritten by the getter.
@@ -78,7 +66,7 @@ impl ChunkedResampler {
         &mut self,
         #[wasm_bindgen(param_description = "new sample rate in Hz")] value: usize,
     ) {
-        self.as_mut().set_output_sample_rate(value);
+        self.0.set_output_sample_rate(value);
     }
 
     /// Get maximum output chunk length given the input chunk length.
@@ -93,7 +81,7 @@ impl ChunkedResampler {
         &self,
         #[wasm_bindgen(js_name = "numInputFrames")] num_input_frames: usize,
     ) -> usize {
-        self.as_ref().max_num_output_frames(num_input_frames)
+        self.0.max_num_output_frames(num_input_frames)
     }
 
     /// Resets internal state.
@@ -103,7 +91,7 @@ impl ChunkedResampler {
     /// Use this method when you want to reuse resampler for another audio stream.
     #[wasm_bindgen(js_name = "reset")]
     pub fn reset(&mut self) {
-        self.as_mut().reset();
+        self.0.reset();
     }
 
     /// Resamples input signal chunk from the source to the target sample rate and appends the
@@ -130,7 +118,7 @@ impl ChunkedResampler {
     #[wasm_bindgen(js_name = "resample")]
     pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
         let mut output = Float32ArrayOutput::new(&output);
-        let num_read = self.as_mut().resample(&chunk[..], &mut output);
+        let num_read = self.0.resample(&chunk[..], &mut output);
         let num_written = output.position() as usize;
         ResampleOutcome {
             num_read,
@@ -138,33 +126,34 @@ impl ChunkedResampler {
         }
     }
 
-    #[inline]
-    fn as_ref(&self) -> &RustChunkedResampler {
-        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
-    }
-
-    #[inline]
-    fn as_mut(&mut self) -> &mut RustChunkedResampler {
-        // SAFETY: Self and ChunkedResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
+    /// Resamples input signal chunk to fill the output array.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input samples / number of output samples_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the output array or too large to fully fit into the output array.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the input length is less than _max(2, A-1)_ or output length is less than 2.
+    #[wasm_bindgen(js_name = "resampleExact")]
+    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.0.resample_exact(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
     }
 }
-
-#[cfg(any(feature = "alloc", test))]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-const CHUNKED_INTERLEAVED_RESAMPLER_LEN: usize = size_of::<RustChunkedInterleavedResampler>();
-
-#[cfg(any(feature = "alloc", test))]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-const _: () = assert!(
-    align_of::<ChunkedInterleavedResampler>() == align_of::<RustChunkedInterleavedResampler>()
-);
-#[cfg(any(feature = "alloc", test))]
-#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
-const _: () = assert!(
-    size_of::<ChunkedInterleavedResampler>() == size_of::<RustChunkedInterleavedResampler>()
-);
 
 /// A resampler that processes audio input in chunks; the channels are interleaved with each other.
 ///
@@ -183,7 +172,7 @@ const _: () = assert!(
 #[wasm_bindgen]
 #[repr(align(4))]
 #[allow(unused)]
-pub struct ChunkedInterleavedResampler([u8; CHUNKED_INTERLEAVED_RESAMPLER_LEN]);
+pub struct ChunkedInterleavedResampler(RustChunkedInterleavedResampler);
 
 #[cfg(any(feature = "alloc", test))]
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
@@ -206,26 +195,17 @@ impl ChunkedInterleavedResampler {
         #[wasm_bindgen(param_description = "number of channels", js_name = "numChannels")]
         num_channels: usize,
     ) -> Self {
-        let mut buf = [0_u8; CHUNKED_INTERLEAVED_RESAMPLER_LEN];
-        let resampler = RustChunkedInterleavedResampler::new(
+        Self(RustChunkedInterleavedResampler::new(
             input_sample_rate,
             output_sample_rate,
             num_channels,
-        );
-        // SAFETY: Self and ChunkedInterleavedResampler have the same size and the same alignment.
-        buf.copy_from_slice(unsafe {
-            slice::from_raw_parts(
-                ptr::from_ref(&resampler).cast(),
-                CHUNKED_INTERLEAVED_RESAMPLER_LEN,
-            )
-        });
-        Self(buf)
+        ))
     }
 
     /// Get input sample rate in Hz.
     #[wasm_bindgen(js_name = "inputSampleRate", getter)]
     pub fn input_sample_rate(&self) -> usize {
-        self.as_ref().input_sample_rate()
+        self.0.input_sample_rate()
     }
 
     /// Get/set output sample rate in Hz.
@@ -234,7 +214,7 @@ impl ChunkedInterleavedResampler {
     /// {@link ChunkedInterleavedResampler.maxNumOutputFrames}.
     #[wasm_bindgen(js_name = "outputSampleRate", getter)]
     pub fn output_sample_rate(&self) -> usize {
-        self.as_ref().output_sample_rate()
+        self.0.output_sample_rate()
     }
 
     // The documentation is overwritten by the getter.
@@ -244,13 +224,13 @@ impl ChunkedInterleavedResampler {
         &mut self,
         #[wasm_bindgen(param_description = "new sample rate in Hz")] value: usize,
     ) {
-        self.as_mut().set_output_sample_rate(value);
+        self.0.set_output_sample_rate(value);
     }
 
     /// Get the number of channels.
     #[wasm_bindgen(js_name = "numChannels", getter)]
     pub fn num_channels(&self) -> usize {
-        self.as_ref().num_channels()
+        self.0.num_channels()
     }
 
     /// Get maximum output chunk length given the input chunk length.
@@ -265,7 +245,7 @@ impl ChunkedInterleavedResampler {
         &self,
         #[wasm_bindgen(js_name = "numInputFrames")] num_input_frames: usize,
     ) -> usize {
-        self.as_ref().max_num_output_frames(num_input_frames)
+        self.0.max_num_output_frames(num_input_frames)
     }
 
     /// Resets internal state.
@@ -275,7 +255,7 @@ impl ChunkedInterleavedResampler {
     /// Use this method when you want to reuse resampler for another audio stream.
     #[wasm_bindgen(js_name = "reset")]
     pub fn reset(&mut self) {
-        self.as_mut().reset();
+        self.0.reset();
     }
 
     /// Resamples input signal chunk from the source to the target sample rate and appends the
@@ -302,7 +282,7 @@ impl ChunkedInterleavedResampler {
     #[wasm_bindgen(js_name = "resample")]
     pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
         let mut output = Float32ArrayOutput::new(&output);
-        let num_read = self.as_mut().resample(&chunk[..], &mut output);
+        let num_read = self.0.resample(&chunk[..], &mut output);
         let num_written = output.position() as usize;
         ResampleOutcome {
             num_read,
@@ -310,16 +290,32 @@ impl ChunkedInterleavedResampler {
         }
     }
 
-    #[inline]
-    fn as_ref(&self) -> &RustChunkedInterleavedResampler {
-        // SAFETY: Self and ChunkedInterleavedResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
-    }
-
-    #[inline]
-    fn as_mut(&mut self) -> &mut RustChunkedInterleavedResampler {
-        // SAFETY: Self and ChunkedInterleavedResampler have the same size and the same alignment.
-        unsafe { core::mem::transmute(self) }
+    /// Resamples input signal chunk to fill the output array.
+    ///
+    /// Returns the number of processed input samples.
+    /// Currently this is either 0 or the input length.
+    /// The output is clamped to _[-1; 1]_.
+    ///
+    /// This method uses _number of input frames / number of output frames_ as the input/output sample rate ratio.
+    /// It's up to the caller to ensure that this ratio is close to the original one to minimize
+    /// artifacts.
+    ///
+    /// Use this method to resample the last chunk of the input that is either too small to fill
+    /// the output array or too large to fully fit into the output array.
+    /// One way of doing so is to resample the last chunk together with the previous one.
+    ///
+    /// #### Edge cases
+    ///
+    /// Returns 0 when either the number of input frames is less than _max(2, A-1)_ or output length is less than 2.
+    #[wasm_bindgen(js_name = "resampleExact")]
+    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+        let mut output = Float32ArrayOutput::new(&output);
+        let num_read = self.0.resample_exact(&chunk[..], &mut output);
+        let num_written = output.position() as usize;
+        ResampleOutcome {
+            num_read,
+            num_written,
+        }
     }
 }
 

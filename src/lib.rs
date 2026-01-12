@@ -8,6 +8,7 @@ extern crate alloc;
 #[cfg(any(feature = "std", test))]
 extern crate std;
 
+mod big_usize;
 mod chunked;
 mod filter;
 mod kernel;
@@ -17,6 +18,7 @@ mod output;
 mod tests;
 mod whole;
 
+use self::big_usize::*;
 use self::filter::*;
 use self::kernel::*;
 use self::math::*;
