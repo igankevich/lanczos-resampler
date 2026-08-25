@@ -39,7 +39,7 @@ impl WholeResampler {
     #[wasm_bindgen(js_name = "resample")]
     pub fn resample(
         &self,
-        #[wasm_bindgen(param_description = "input samples")] input: &[f32],
+        #[wasm_bindgen(param_description = "input samples")] input: &Float32Array,
         #[wasm_bindgen(
             param_description = "input sample rate in Hz",
             js_name = "inputSampleRate"
@@ -51,6 +51,7 @@ impl WholeResampler {
         )]
         output_sample_rate: usize,
     ) -> Float32Array {
+        let input = input.to_vec();
         let Some(output_len) =
             rust::checked_num_output_frames(input.len(), input_sample_rate, output_sample_rate)
         else {
@@ -76,7 +77,8 @@ impl WholeResampler {
     /// Panics when the output isn't large enough to hold all the resampled points.
     /// Use {@link numOutputFrames} to ensure that the buffer size is sufficient.
     #[wasm_bindgen(js_name = "resampleInto")]
-    pub fn resample_into(&self, input: &[f32], output: &Float32Array) -> usize {
+    pub fn resample_into(&self, input: &Float32Array, output: &Float32Array) -> usize {
+        let input = input.to_vec();
         // Having &Float32Array as the output is faster than &mut [f32]...
         self.0
             .resample_into(&input[..], &mut Float32ArrayOutput::new(output))
@@ -97,11 +99,12 @@ impl WholeResampler {
     #[wasm_bindgen(js_name = "resampleInterleavedInto")]
     pub fn resample_interleaved_into(
         &self,
-        #[wasm_bindgen(param_description = "input frames")] input: &[f32],
+        #[wasm_bindgen(param_description = "input frames")] input: &Float32Array,
         #[wasm_bindgen(js_name = "numChannels", param_description = "number of channels")]
         num_channels: usize,
         output: &Float32Array,
     ) -> usize {
+        let input = input.to_vec();
         self.0.resample_interleaved_into(
             &input[..],
             num_channels,
