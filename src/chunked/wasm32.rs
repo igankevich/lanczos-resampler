@@ -116,7 +116,8 @@ impl ChunkedResampler {
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
     #[wasm_bindgen(js_name = "resample")]
-    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+    pub fn resample(&mut self, chunk: &Float32Array, output: &Float32Array) -> ResampleOutcome {
+        let chunk = chunk.to_vec();
         let mut output = Float32ArrayOutput::new(&output);
         let num_read = self.0.resample(&chunk[..], &mut output);
         let num_written = output.position() as usize;
@@ -144,7 +145,12 @@ impl ChunkedResampler {
     ///
     /// Returns 0 when either the input length is less than _max(2, A-1)_ or output length is less than 2.
     #[wasm_bindgen(js_name = "resampleExact")]
-    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+    pub fn resample_exact(
+        &mut self,
+        chunk: &Float32Array,
+        output: &Float32Array,
+    ) -> ResampleOutcome {
+        let chunk = chunk.to_vec();
         let mut output = Float32ArrayOutput::new(&output);
         let num_read = self.0.resample_exact(&chunk[..], &mut output);
         let num_written = output.position() as usize;
@@ -280,7 +286,8 @@ impl ChunkedInterleavedResampler {
     /// isn't an interpolation function, but a filter. To minimize such discrepancies chunk size should
     /// be much larger than _2⋅A + 1_.
     #[wasm_bindgen(js_name = "resample")]
-    pub fn resample(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+    pub fn resample(&mut self, chunk: &Float32Array, output: &Float32Array) -> ResampleOutcome {
+        let chunk = chunk.to_vec();
         let mut output = Float32ArrayOutput::new(&output);
         let num_read = self.0.resample(&chunk[..], &mut output);
         let num_written = output.position() as usize;
@@ -308,7 +315,12 @@ impl ChunkedInterleavedResampler {
     ///
     /// Returns 0 when either the number of input frames is less than _max(2, A-1)_ or output length is less than 2.
     #[wasm_bindgen(js_name = "resampleExact")]
-    pub fn resample_exact(&mut self, chunk: &[f32], output: Float32Array) -> ResampleOutcome {
+    pub fn resample_exact(
+        &mut self,
+        chunk: &Float32Array,
+        output: &Float32Array,
+    ) -> ResampleOutcome {
+        let chunk = chunk.to_vec();
         let mut output = Float32ArrayOutput::new(&output);
         let num_read = self.0.resample_exact(&chunk[..], &mut output);
         let num_written = output.position() as usize;
