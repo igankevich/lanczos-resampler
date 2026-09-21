@@ -36,15 +36,16 @@ async function generateImportObject(code) {
     return output
 }
 
-async function generateTextDecoderPolyfill() {
-    await fs.promises.copyFile('js/no-text-decoder.js', 'pkg/text-decoder.js')
+async function patchLanczosResamplerBg() {
+    const preamble = await fs.promises.readFile('js/no-text-decoder.js')
+    const text = await fs.promises.readFile('pkg/lanczos_resampler_bg.js', 'utf-8')
+    await fs.promises.writeFile('pkg/lanczos_resampler_bg.js', preamble + text)
 }
 
 async function patchPackageJson() {
     const package_json = JSON.parse(await fs.promises.readFile('pkg/package.json', 'utf-8'))
     const files = new Set(package_json.files)
     files.add('loader.js')
-    files.add('text-decoder.js')
     files.add('code.wasm')
     files.delete('lanczos_resampler_bg.wasm')
     package_json.files = Array.from(files)
@@ -73,6 +74,6 @@ output += '\n\n'
 output += `export * from './lanczos_resampler_bg.js'\n\n`
 output += generateCodeBase64(code)
 await fs.promises.writeFile('pkg/loader.js', output)
-await generateTextDecoderPolyfill()
+await patchLanczosResamplerBg()
 await patchPackageJson()
 await patchIndexJs()

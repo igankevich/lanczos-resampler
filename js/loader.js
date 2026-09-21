@@ -4,7 +4,6 @@
  * These can be useful inside audio worklets and web workers.
  * @module loader
  */
-import './text-decoder.js'
 import { __wbg_set_wasm } from './lanczos_resampler_bg.js'
 
 /**
